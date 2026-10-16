@@ -1,0 +1,100 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+
+{% block title %} Dashboard {% endblock title %}
+
+{% block content %}
+
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-12">
+      <div class="card p-4 mb-4">
+        <div class="row align-items-center">
+          <div class="col-lg-8">
+            <h4 class="mb-2">Selamat datang di TSP Warehouse</h4>
+            <p class="text-sm mb-0 text-secondary">
+              Sistem manajemen pergudangan — silakan memulai dari menu Data Master di sebelah kiri,
+              atau gunakan tautan cepat di bawah ini.
+            </p>
+          </div>
+          <div class="col-lg-4 text-lg-end text-start mt-3 mt-lg-0">
+            <img src="{% static 'img/logo.png' %}" alt="TSP Warehouse" style="height: 64px;">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-xl-4 col-sm-6 mb-xl-0 mb-4">
+      <a href="{% url 'user-index' %}" class="text-decoration-none">
+        <div class="card h-100">
+          <div class="card-body p-3">
+            <div class="row">
+              <div class="col-8">
+                <div class="numbers">
+                  <p class="text-sm mb-0 text-capitalize font-weight-bold">Pengguna</p>
+                  <h5 class="font-weight-bolder mb-0">Data Pengguna</h5>
+                  <p class="text-sm mb-0 text-secondary">Akun, posisi &amp; otorisasi menu</p>
+                </div>
+              </div>
+              <div class="col-4 text-end">
+                <div class="icon icon-shape bg-gradient-primary shadow text-center border-radius-md">
+                  <i class="ni ni-single-02 text-lg opacity-10" aria-hidden="true"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-xl-4 col-sm-6 mb-xl-0 mb-4">
+      <a href="{% url 'position-index' %}" class="text-decoration-none">
+        <div class="card h-100">
+          <div class="card-body p-3">
+            <div class="row">
+              <div class="col-8">
+                <div class="numbers">
+                  <p class="text-sm mb-0 text-capitalize font-weight-bold">Posisi</p>
+                  <h5 class="font-weight-bolder mb-0">Data Posisi</h5>
+                  <p class="text-sm mb-0 text-secondary">Daftar posisi / jabatan</p>
+                </div>
+              </div>
+              <div class="col-4 text-end">
+                <div class="icon icon-shape bg-gradient-primary shadow text-center border-radius-md">
+                  <i class="ni ni-briefcase-24 text-lg opacity-10" aria-hidden="true"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-xl-4 col-sm-6">
+      <a href="{% url 'menu-index' %}" class="text-decoration-none">
+        <div class="card h-100">
+          <div class="card-body p-3">
+            <div class="row">
+              <div class="col-8">
+                <div class="numbers">
+                  <p class="text-sm mb-0 text-capitalize font-weight-bold">Menu</p>
+                  <h5 class="font-weight-bolder mb-0">Data Menu</h5>
+                  <p class="text-sm mb-0 text-secondary">Daftar menu &amp; hak akses</p>
+                </div>
+              </div>
+              <div class="col-4 text-end">
+                <div class="icon icon-shape bg-gradient-primary shadow text-center border-radius-md">
+                  <i class="ni ni-menu text-lg opacity-10" aria-hidden="true"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+</div>
+
+{% endblock content %}

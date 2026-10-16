@@ -1,0 +1,26 @@
+django==5.0.6
+# gunicorn
+# python-dotenv
+# whitenoise
+# django-admin-soft-dashboard==1.0.11
+pillow
+pymysql
+django-crum
+phonenumbers
+django-phonenumber-field
+dj-database-url
+django-import-export
+django-auto-logout
+pytz
+xlwt
+xlsxwriter
+django-mathfilters
+reportlab
+pypdf2
+requests
+django-tinymce
+xhtml2pdf
+# django-select2
+# pip install pyyaml ua-parser user-agents <-- install these packages first for django-user-agents
+django-user-agents
+# djangorestframework

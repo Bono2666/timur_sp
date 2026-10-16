@@ -1,0 +1,42 @@
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.home, name='home'),
+    # Pengguna
+    path('master/user/', views.user_index, name='user-index'),
+    path('master/user/add/', views.user_add, name='user-add'),
+    path('master/user/view/<str:_id>/', views.user_view, name='user-view'),
+    path('master/user/update/<str:_id>/',
+         views.user_update, name='user-update'),
+    path('master/user/delete/<str:_id>/',
+         views.user_delete, name='user-delete'),
+    path('master/user/remove-signature/<str:_id>/',
+         views.remove_signature, name='remove-signature'),
+    path('master/user/change-password/',
+         views.change_password, name='change-password'),
+    path('master/user/set-password/<str:_id>/',
+         views.set_password, name='set-password'),
+    # Posisi
+    path('master/position/', views.position_index, name='position-index'),
+    path('master/position/add/', views.position_add, name='position-add'),
+    path('master/position/view/<str:_id>/',
+         views.position_view, name='position-view'),
+    path('master/position/update/<str:_id>/',
+         views.position_update, name='position-update'),
+    path('master/position/delete/<str:_id>/',
+         views.position_delete, name='position-delete'),
+    # Menu
+    path('master/menu/', views.menu_index, name='menu-index'),
+    path('master/menu/add/', views.menu_add, name='menu-add'),
+    path('master/menu/view/<str:_id>/', views.menu_view, name='menu-view'),
+    path('master/menu/update/<str:_id>/',
+         views.menu_update, name='menu-update'),
+    path('master/menu/delete/<str:_id>/',
+         views.menu_delete, name='menu-delete'),
+    # Otorisasi menu per pengguna
+    path('master/auth/update/<str:_id>/<str:_menu>/',
+         views.auth_update, name='auth-update'),
+    path('master/auth/delete/<str:_id>/<str:_menu>/',
+         views.auth_delete, name='auth-delete'),
+]
