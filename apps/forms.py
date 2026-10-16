@@ -495,3 +495,34 @@ class FormItemView(ModelForm):
         model = Item
         fields = ['sku', 'name', 'barcode', 'category', 'uom',
                   'minimum_stock', 'is_active', 'description']
+
+
+# ==================================================================
+# Transaksi Gudang — Penerimaan Barang (Fase 2)
+# ==================================================================
+class FormReceipt(ModelForm):
+    """Header dokumen penerimaan. Baris detail ditangani terpisah (array POST)."""
+
+    def __init__(self, *args, **kwargs):
+        super(FormReceipt, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['warehouse'].label = 'Gudang'
+        self.fields['partner'].label = 'Supplier'
+        self.fields['reference'].label = 'Referensi (No. PO)'
+        self.fields['document_date'].label = 'Tanggal Dokumen'
+        self.fields['notes'].label = 'Catatan'
+        self.fields['warehouse'].widget = forms.Select(
+            {'class': 'form-control form-select-sm'})
+        self.fields['partner'].widget = forms.Select(
+            {'class': 'form-control form-select-sm'})
+        self.fields['partner'].required = False
+        self.fields['reference'].widget = forms.TextInput(
+            {'class': 'form-control-sm'})
+        self.fields['document_date'].widget = forms.DateInput(
+            {'class': 'form-control-sm', 'type': 'date'})
+        self.fields['notes'].widget = forms.TextInput(
+            {'class': 'form-control-sm'})
+
+    class Meta:
+        model = StockDocument
+        fields = ['warehouse', 'partner', 'reference', 'document_date', 'notes']

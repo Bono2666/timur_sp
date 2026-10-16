@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     path('', views.home, name='home'),
+    path('health', views.health, name='health'),
     # Pengguna
     path('master/user/', views.user_index, name='user-index'),
     path('master/user/add/', views.user_add, name='user-add'),
@@ -92,4 +93,22 @@ urlpatterns = [
          views.item_update, name='item-update'),
     path('master/item/delete/<int:_id>/',
          views.item_delete, name='item-delete'),
+
+    # Transaksi: Penerimaan Barang
+    path('warehouse/receipt/', views.receipt_index, name='receipt-index'),
+    path('warehouse/receipt/add/', views.receipt_add, name='receipt-add'),
+    path('warehouse/receipt/edit/<int:_id>/',
+         views.receipt_edit, name='receipt-edit'),
+    path('warehouse/receipt/<int:_id>/',
+         views.receipt_view, name='receipt-view'),
+    path('warehouse/receipt/<int:_id>/submit/',
+         views.receipt_submit, name='receipt-submit'),
+    path('warehouse/receipt/<int:_id>/approve/',
+         views.receipt_approve, name='receipt-approve'),
+    path('warehouse/receipt/<int:_id>/reject/',
+         views.receipt_reject, name='receipt-reject'),
+    path('warehouse/receipt/<int:_id>/cancel/',
+         views.receipt_cancel, name='receipt-cancel'),
+    path('warehouse/receipt/<int:_id>/post/',
+         views.receipt_post, name='receipt-post'),
 ]

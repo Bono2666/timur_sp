@@ -1,0 +1,242 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %} Detail Penerimaan {% endblock title %}
+
+{% block content %}
+
+<div class="container-fluid mt-0">
+    <div class="row">
+        <div class="col-xl-12 order-xl-1">
+            <div class="card">
+                <div class="card-header">
+                    <div class="row">
+                        <div class="col-5 d-flex align-items-center">
+                            <h4 class="mb-2 me-3">{{ data.number }}</h4>
+                            {% if data.status == 'draft' %}<span class="badge bg-gradient-secondary">Draft</span>
+                            {% elif data.status == 'submitted' %}<span class="badge bg-gradient-info">Submitted</span>
+                            {% elif data.status == 'approved' %}<span class="badge bg-gradient-warning">Approved</span>
+                            {% elif data.status == 'posted' %}<span class="badge bg-gradient-success">Posted</span>
+                            {% else %}<span class="badge bg-gradient-danger">Cancelled</span>{% endif %}
+                        </div>
+                        <div class="col-7 text-end">
+                            <a href="{% url 'receipt-index' %}" class="btn btn-sm bg-gradient-dark mb-0"><i class="fas fa-reply"></i>&nbsp;&nbsp;Kembali</a>
+
+                            {% if data.status == 'draft' %}
+                              {% if btn.edit or request.user.is_superuser %}
+                              <a href="{% url 'receipt-edit' data.pk %}" class="btn btn-sm bg-gradient-dark mb-0"><i class="fas fa-edit"></i>&nbsp;&nbsp;Edit</a>
+                              {% endif %}
+                              <button class="btn btn-sm bg-gradient-primary mb-0" data-bs-toggle="modal" data-bs-target="#modal-submit"><i class="fas fa-paper-plane"></i>&nbsp;&nbsp;Submit</button>
+                              <button class="btn btn-sm bg-gradient-danger mb-0" data-bs-toggle="modal" data-bs-target="#modal-cancel"><i class="fas fa-ban"></i>&nbsp;&nbsp;Batalkan</button>
+
+                            {% elif data.status == 'submitted' %}
+                              <button class="btn btn-sm bg-gradient-success mb-0 {% if sod_block %}disabled{% endif %}" data-bs-toggle="modal" data-bs-target="#modal-approve"><i class="fas fa-check"></i>&nbsp;&nbsp;Setujui</button>
+                              <button class="btn btn-sm bg-gradient-warning mb-0" data-bs-toggle="modal" data-bs-target="#modal-reject"><i class="fas fa-times"></i>&nbsp;&nbsp;Tolak</button>
+
+                            {% elif data.status == 'approved' %}
+                              <button class="btn btn-sm bg-gradient-success mb-0" data-bs-toggle="modal" data-bs-target="#modal-post"><i class="fas fa-database"></i>&nbsp;&nbsp;Post</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                {% if message %}
+                <div class="m-4">
+                    <div class="alert alert-danger text-white text-sm mb-0">{{ message }}</div>
+                </div>
+                {% endif %}
+                {% if info %}
+                <div class="m-4">
+                    <div class="alert alert-success text-white text-sm mb-0">{{ info }}</div>
+                </div>
+                {% endif %}
+                {% if sod_block and data.status == 'submitted' %}
+                <div class="m-4 mb-0">
+                    <div class="alert alert-warning text-white text-sm mb-0">
+                        Anda membuat dokumen ini, sehingga tidak dapat menyetujuinya (segregation of duties).
+                    </div>
+                </div>
+                {% endif %}
+                {% if data.reject_reason and data.status == 'draft' %}
+                <div class="m-4 mb-0">
+                    <div class="alert alert-warning text-white text-sm mb-0">Dokumen pernah ditolak: {{ data.reject_reason }}</div>
+                </div>
+                {% endif %}
+
+                <!-- Modal Submit -->
+                <div class="modal fade" id="modal-submit" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <form method="post" action="{% url 'receipt-submit' data.pk %}">
+                            {% csrf_token %}
+                            <div class="modal-content">
+                                <div class="modal-header"><h5 class="modal-title">Konfirmasi Submit</h5></div>
+                                <div class="modal-body border-bottom-0">Submit dokumen <strong>{{ data.number }}</strong> untuk ditinjau supervisor?</div>
+                                <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Batal</button>
+                                    <button type="submit" class="btn btn-sm bg-gradient-primary text-white">Submit</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Modal Approve -->
+                <div class="modal fade" id="modal-approve" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <form method="post" action="{% url 'receipt-approve' data.pk %}">
+                            {% csrf_token %}
+                            <div class="modal-content">
+                                <div class="modal-header"><h5 class="modal-title">Konfirmasi Persetujuan</h5></div>
+                                <div class="modal-body border-bottom-0">Setujui dokumen <strong>{{ data.number }}</strong>? Setelah disetujui, dokumen dapat diposting.</div>
+                                <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Batal</button>
+                                    <button type="submit" class="btn btn-sm bg-gradient-success text-white">Setujui</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Modal Reject -->
+                <div class="modal fade" id="modal-reject" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <form method="post" action="{% url 'receipt-reject' data.pk %}">
+                            {% csrf_token %}
+                            <div class="modal-content">
+                                <div class="modal-header"><h5 class="modal-title">Tolak Dokumen</h5></div>
+                                <div class="modal-body border-bottom-0">
+                                    <label class="text-muted text-xs">Alasan penolakan <span class="text-danger">*</span></label>
+                                    <textarea name="reason" class="form-control form-control-sm" rows="3" required></textarea>
+                                </div>
+                                <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Batal</button>
+                                    <button type="submit" class="btn btn-sm bg-gradient-warning text-white">Tolak</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Modal Cancel -->
+                <div class="modal fade" id="modal-cancel" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <form method="post" action="{% url 'receipt-cancel' data.pk %}">
+                            {% csrf_token %}
+                            <div class="modal-content">
+                                <div class="modal-header"><h5 class="modal-title">Batalkan Dokumen</h5></div>
+                                <div class="modal-body border-bottom-0">
+                                    <label class="text-muted text-xs">Alasan pembatalan <span class="text-danger">*</span></label>
+                                    <textarea name="reason" class="form-control form-control-sm" rows="3" required></textarea>
+                                </div>
+                                <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Batal</button>
+                                    <button type="submit" class="btn btn-sm bg-gradient-danger text-white">Batalkan</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Modal Post -->
+                <div class="modal fade" id="modal-post" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <form method="post" action="{% url 'receipt-post' data.pk %}">
+                            {% csrf_token %}
+                            <div class="modal-content">
+                                <div class="modal-header"><h5 class="modal-title">Posting Dokumen</h5></div>
+                                <div class="modal-body border-bottom-0">
+                                    Posting dokumen <strong>{{ data.number }}</strong> akan menambah stok dan tidak dapat diubah lagi. Lanjutkan?
+                                </div>
+                                <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Batal</button>
+                                    <button type="submit" class="btn btn-sm bg-gradient-success text-white">Post</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <!-- Ringkasan header -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Gudang</p>
+                            <h6 class="mb-0 text-sm">{{ data.warehouse.name }}</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Supplier</p>
+                            <h6 class="mb-0 text-sm">{{ data.partner.name|default:'-' }}</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Tanggal</p>
+                            <h6 class="mb-0 text-sm">{{ data.document_date|date:'d/m/Y' }}</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Referensi</p>
+                            <h6 class="mb-0 text-sm">{{ data.reference|default:'-' }}</h6>
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Dibuat oleh</p>
+                            <h6 class="mb-0 text-sm">{{ data.created_by }}</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Submit oleh</p>
+                            <h6 class="mb-0 text-sm">{{ data.submitted_by|default:'-' }}</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Disetujui oleh</p>
+                            <h6 class="mb-0 text-sm">{{ data.approved_by|default:'-' }}</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Posted pada</p>
+                            <h6 class="mb-0 text-sm">{{ data.posted_at|date:'d/m/Y H:i'|default:'-' }}</h6>
+                        </div>
+                    </div>
+                    {% if data.notes %}
+                    <div class="row mb-4"><div class="col-12">
+                        <p class="text-xxs text-uppercase text-secondary mb-1">Catatan</p>
+                        <h6 class="mb-0 text-sm">{{ data.notes }}</h6>
+                    </div></div>
+                    {% endif %}
+
+                    <!-- Tabel baris -->
+                    <h6 class="mb-2">Detail Barang</h6>
+                    <div class="table-responsive">
+                        <table class="table align-items-center mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">SKU</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Barang</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Lokasi Tujuan</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Qty</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Catatan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for line in lines %}
+                                <tr>
+                                    <td><h6 class="mb-0 text-sm">{{ line.item.sku }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ line.item.name }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ line.destination_location.warehouse.code }} · {{ line.destination_location.code }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ line.quantity }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ line.notes|default:'-' }}</h6></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="3" class="text-end text-uppercase text-xxs text-secondary font-weight-bolder">Total</td>
+                                    <td class="font-weight-bolder">{{ data.total_quantity }}</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}

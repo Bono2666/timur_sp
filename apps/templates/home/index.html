@@ -142,6 +142,40 @@
       </a>
     </div>
 
+    {% if 'RCV' in role or request.user.is_superuser %}
+    <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
+      <a href="{% url 'receipt-index' %}" class="text-decoration-none">
+        <div class="card h-100">
+          <div class="card-body p-3">
+            <div class="row">
+              <div class="col-8">
+                <div class="numbers">
+                  <p class="text-sm mb-0 text-capitalize font-weight-bold">Penerimaan</p>
+                  <h5 class="font-weight-bolder mb-0">{{ kpi.rcv_posted_month }}</h5>
+                  <p class="text-sm mb-0 text-secondary">Posted bulan ini</p>
+                </div>
+              </div>
+              <div class="col-4 text-end">
+                <div class="icon icon-shape {% if kpi.rcv_pending > 0 %}bg-gradient-warning{% else %}bg-gradient-primary{% endif %} shadow text-center border-radius-md">
+                  <i class="fas fa-inbox text-lg opacity-10" aria-hidden="true"></i>
+                </div>
+              </div>
+            </div>
+            {% if kpi.rcv_pending > 0 %}
+            <p class="text-sm mb-0 mt-3 text-warning font-weight-bold mb-0">
+              {{ kpi.rcv_pending }} menunggu persetujuan
+            </p>
+            {% elif kpi.rcv_draft > 0 %}
+            <p class="text-sm mb-0 mt-3 text-secondary mb-0">
+              {{ kpi.rcv_draft }} masih draft
+            </p>
+            {% endif %}
+          </div>
+        </div>
+      </a>
+    </div>
+    {% endif %}
+
     <div class="col-xl-9 col-sm-6">
       <div class="card h-100">
         <div class="card-header bg-transparent">
@@ -149,10 +183,10 @@
         </div>
         <div class="card-body p-3 pt-2">
           <p class="text-sm text-secondary mb-2">
-            Operasi gudang berikutnya akan muncul di sini: Penerimaan, Pengeluaran, Transfer,
+            Operasi gudang berikutnya akan muncul di sini: Pengeluaran, Transfer,
             Penyesuaian, Stock Opname, dan Laporan.
           </p>
-          <span class="badge bg-gradient-secondary me-1">Penerimaan</span>
+          <span class="badge bg-gradient-success me-1">Penerimaan ✓</span>
           <span class="badge bg-gradient-secondary me-1">Pengeluaran</span>
           <span class="badge bg-gradient-secondary me-1">Transfer</span>
           <span class="badge bg-gradient-secondary me-1">Penyesuaian</span>

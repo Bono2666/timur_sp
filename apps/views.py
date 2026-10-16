@@ -1,10 +1,10 @@
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
-from django.db import connection, IntegrityError
+from django.db import connection, IntegrityError, transaction
 from django.db.models import ProtectedError, Sum, F, Value
 from django.db.models.functions import Coalesce
 from decimal import Decimal
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
 from django.conf import settings
@@ -28,6 +28,11 @@ def _ctx(request, segment, crud, menu_id, **extra):
     return ctx
 
 
+def health(request):
+    """Endpoint liveness untuk health-check (tanpa auth)."""
+    return JsonResponse({'status': 'ok', 'app': 'tsp-warehouse'})
+
+
 @login_required(login_url='/login/')
 def home(request):
     # KPI Dashboard Pergudangan (Fase 1: master + saldo)
@@ -40,8 +45,20 @@ def home(request):
         onhand=Coalesce(Sum('balances__on_hand'), Value(Decimal('0')))
     ).filter(minimum_stock__gt=0, onhand__lt=F('minimum_stock')).count()
 
+    # KPI Penerimaan Barang (Fase 2)
+    bulan_ini = timezone.now().replace(day=1, hour=0, minute=0,
+                                       second=0, microsecond=0)
+    rcv_draft = StockDocument.objects.filter(
+        document_type='RCV', status='draft').count()
+    rcv_pending = StockDocument.objects.filter(
+        document_type='RCV', status='submitted').count()
+    rcv_posted_month = StockDocument.objects.filter(
+        document_type='RCV', status='posted',
+        posted_at__gte=bulan_ini).count()
+
     context = {
         'segment': 'index',
+        'group_segment': 'dashboard',
         'role': Auth.objects.filter(user_id=request.user.user_id).values_list('menu_id', flat=True),
         'kpi': {
             'sku': total_sku,
@@ -50,6 +67,9 @@ def home(request):
             'mitra': total_mitra,
             'stok': total_stok,
             'below_min': di_bawah_minimum,
+            'rcv_draft': rcv_draft,
+            'rcv_pending': rcv_pending,
+            'rcv_posted_month': rcv_posted_month,
         },
     }
     return render(request, 'home/index.html', context)
@@ -834,3 +854,279 @@ def item_delete(request, _id):
     except ProtectedError:
         pass
     return HttpResponseRedirect(reverse('item-index'))
+
+
+# ==================================================================
+# Transaksi Gudang: Penerimaan Barang (Fase 2)
+# ==================================================================
+def _rctx(request, crud, **extra):
+    ctx = {
+        'segment': 'receipt',
+        'group_segment': 'transaction',
+        'crud': crud,
+        'role': Auth.objects.filter(user_id=request.user.user_id).values_list(
+            'menu_id', flat=True),
+        'btn': Auth.objects.filter(
+            user_id=request.user.user_id, menu_id='RCV').first()
+        if not request.user.is_superuser else Auth.objects.all(),
+    }
+    ctx.update(extra)
+    return ctx
+
+
+def _receipt_refs():
+    """Data referensi untuk select pada form baris."""
+    return {
+        'items': Item.objects.filter(is_active=True).order_by('sku'),
+        'locations': StorageLocation.objects.filter(
+            is_active=True).select_related('warehouse').order_by('warehouse__code', 'code'),
+    }
+
+
+def _parse_lines(request, warehouse):
+    """Parse baris detail dari POST. Return (lines, errors)."""
+    items = request.POST.getlist('line_item')
+    locs = request.POST.getlist('line_loc')
+    qtys = request.POST.getlist('line_qty')
+    notes = request.POST.getlist('line_note')
+    lines, errors = [], []
+
+    for i, item_raw in enumerate(items):
+        if not str(item_raw).strip():
+            continue
+        loc_raw = locs[i] if i < len(locs) else ''
+        qty_raw = qtys[i] if i < len(qtys) else ''
+        note_raw = notes[i] if i < len(notes) else ''
+        try:
+            item = Item.objects.get(pk=int(item_raw))
+        except (Item.DoesNotExist, ValueError, TypeError):
+            errors.append('Baris %d: barang tidak valid.' % (i + 1))
+            continue
+        try:
+            loc = StorageLocation.objects.get(pk=int(loc_raw))
+        except (StorageLocation.DoesNotExist, ValueError, TypeError):
+            errors.append('Baris %d: lokasi tujuan wajib dipilih.' % (i + 1))
+            continue
+        if loc.warehouse_id != warehouse.pk:
+            errors.append('Baris %d: lokasi tujuan bukan milik gudang terpilih.' % (i + 1))
+            continue
+        try:
+            qty = Decimal(str(qty_raw))
+        except Exception:
+            errors.append('Baris %d: kuantitas tidak valid.' % (i + 1))
+            continue
+        if qty <= 0:
+            errors.append('Baris %d: kuantitas harus lebih besar dari 0.' % (i + 1))
+            continue
+        lines.append({'item': item, 'loc': loc, 'qty': qty, 'note': note_raw})
+
+    if not lines and not errors:
+        errors.append('Dokumen harus memiliki minimal 1 baris barang.')
+    return lines, errors
+
+
+def _save_lines(doc, lines):
+    StockDocumentLine.objects.filter(document=doc).delete()
+    for l in lines:
+        StockDocumentLine.objects.create(
+            document=doc, item=l['item'], destination_location=l['loc'],
+            quantity=l['qty'], notes=l['note'])
+
+
+def _render_receipt_view(request, doc, error=None, extra_status=None):
+    doc = StockDocument.objects.select_related(
+        'warehouse', 'partner').prefetch_related('lines__item').get(pk=doc.pk)
+    lines = list(doc.lines.select_related('item', 'destination_location'))
+    sod_block = (doc.created_by == request.user.user_id
+                 and not request.user.is_superuser)
+    ctx = _rctx(request, 'view', data=doc, lines=lines, sod_block=sod_block)
+    if error:
+        ctx['message'] = error
+    if extra_status:
+        ctx['info'] = extra_status
+    return render(request, 'home/receipt_view.html', ctx)
+
+
+def _post_receipt(doc_id, actor):
+    """Posting atomik: tulis ledger IN + update saldo. Idempoten (status lock)."""
+    with transaction.atomic():
+        doc = StockDocument.objects.select_for_update().get(pk=doc_id)
+        if doc.status != 'approved':
+            raise ValueError('Dokumen belum berstatus Approved.')
+        for line in doc.lines.all():
+            StockLedger.objects.create(
+                item=line.item, warehouse=doc.warehouse,
+                location=line.destination_location, quantity=line.quantity,
+                move_type='IN', reference=doc.number, notes=line.notes,
+                actor=actor, posted_at=timezone.now())
+            bal, _ = StockBalance.objects.select_for_update().get_or_create(
+                item=line.item, location=line.destination_location,
+                defaults={'warehouse': line.destination_location.warehouse,
+                          'on_hand': Decimal('0'), 'reserved': Decimal('0')})
+            bal.on_hand = (bal.on_hand or Decimal('0')) + line.quantity
+            bal.save(update_fields=['on_hand'])
+        doc.status = 'posted'
+        doc.posted_at = timezone.now()
+        doc.save()
+    return doc
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='RCV')
+def receipt_index(request):
+    status = request.GET.get('status', '')
+    data = StockDocument.objects.select_related(
+        'warehouse', 'partner').prefetch_related('lines')
+    if status:
+        data = data.filter(status=status)
+    return render(request, 'home/receipt_index.html', _rctx(
+        request, 'index', data=data, filter_status=status))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='RCV')
+def receipt_add(request):
+    refs = _receipt_refs()
+    if request.POST:
+        form = FormReceipt(request.POST)
+        if form.is_valid():
+            warehouse = form.cleaned_data['warehouse']
+            lines, line_errors = _parse_lines(request, warehouse)
+            if line_errors:
+                return render(request, 'home/receipt_add.html', _rctx(
+                    request, 'add', form=form, message=line_errors, **refs))
+            with transaction.atomic():
+                doc = form.save(commit=False)
+                doc.document_type = 'RCV'
+                doc.number = DocumentSequence.next_number_for('RCV')
+                doc.created_by = request.user.user_id
+                doc.status = 'draft'
+                doc.save()
+                _save_lines(doc, lines)
+            return HttpResponseRedirect(reverse('receipt-view', args=[doc.pk]))
+        return render(request, 'home/receipt_add.html', _rctx(
+            request, 'add', form=form, message=form.errors, **refs))
+    return render(request, 'home/receipt_add.html', _rctx(
+        request, 'add', form=FormReceipt(initial={'document_date': timezone.now().date()}), **refs))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='RCV')
+def receipt_edit(request, _id):
+    doc = StockDocument.objects.get(pk=_id)
+    if doc.status != 'draft':
+        return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+    refs = _receipt_refs()
+    refs['existing_lines'] = doc.lines.select_related(
+        'item', 'destination_location')
+    refs['edit_doc'] = doc
+    if request.POST:
+        form = FormReceipt(request.POST, instance=doc)
+        if form.is_valid():
+            warehouse = form.cleaned_data['warehouse']
+            lines, line_errors = _parse_lines(request, warehouse)
+            if line_errors:
+                return render(request, 'home/receipt_add.html', _rctx(
+                    request, 'update', form=form, message=line_errors, **refs))
+            with transaction.atomic():
+                doc = form.save(commit=False)
+                doc.save()
+                _save_lines(doc, lines)
+            return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+        return render(request, 'home/receipt_add.html', _rctx(
+            request, 'update', form=form, message=form.errors, **refs))
+    return render(request, 'home/receipt_add.html', _rctx(
+        request, 'update', form=FormReceipt(instance=doc), **refs))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='RCV')
+def receipt_view(request, _id):
+    doc = StockDocument.objects.get(pk=_id)
+    return _render_receipt_view(request, doc)
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='RCV')
+def receipt_submit(request, _id):
+    if request.method != 'POST':
+        return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+    with transaction.atomic():
+        doc = StockDocument.objects.select_for_update().get(pk=_id)
+        if doc.status != 'draft':
+            return _render_receipt_view(request, doc, error='Hanya dokumen Draft yang dapat di-submit.')
+        doc.status = 'submitted'
+        doc.submitted_by = request.user.user_id
+        doc.reject_reason = None
+        doc.save()
+    return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='RCV')
+def receipt_approve(request, _id):
+    if request.method != 'POST':
+        return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+    with transaction.atomic():
+        doc = StockDocument.objects.select_for_update().get(pk=_id)
+        if doc.status != 'submitted':
+            return _render_receipt_view(request, doc, error='Hanya dokumen Submitted yang dapat disetujui.')
+        # Segregation of duties: pembuat tidak boleh approve dokumennya sendiri
+        if doc.created_by == request.user.user_id and not request.user.is_superuser:
+            return _render_receipt_view(
+                request, doc,
+                error='Anda tidak dapat menyetujui dokumen yang Anda buat sendiri (segregation of duties).')
+        doc.status = 'approved'
+        doc.approved_by = request.user.user_id
+        doc.save()
+    return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='RCV')
+def receipt_reject(request, _id):
+    if request.method != 'POST':
+        return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+    reason = (request.POST.get('reason') or '').strip()
+    with transaction.atomic():
+        doc = StockDocument.objects.select_for_update().get(pk=_id)
+        if doc.status != 'submitted':
+            return _render_receipt_view(request, doc, error='Hanya dokumen Submitted yang dapat ditolak.')
+        if not reason:
+            return _render_receipt_view(request, doc, error='Alasan penolakan wajib diisi.')
+        doc.status = 'draft'
+        doc.reject_reason = reason
+        doc.submitted_by = None
+        doc.save()
+    return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='RCV')
+def receipt_cancel(request, _id):
+    if request.method != 'POST':
+        return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+    reason = (request.POST.get('reason') or '').strip()
+    with transaction.atomic():
+        doc = StockDocument.objects.select_for_update().get(pk=_id)
+        if doc.status != 'draft':
+            return _render_receipt_view(request, doc, error='Hanya dokumen Draft yang dapat dibatalkan.')
+        if not reason:
+            return _render_receipt_view(request, doc, error='Alasan pembatalan wajib diisi.')
+        doc.status = 'cancelled'
+        doc.cancel_reason = reason
+        doc.save()
+    return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='RCV')
+def receipt_post(request, _id):
+    if request.method != 'POST':
+        return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+    try:
+        _post_receipt(_id, request.user.user_id)
+    except ValueError as e:
+        doc = StockDocument.objects.get(pk=_id)
+        return _render_receipt_view(request, doc, error=str(e))
+    return HttpResponseRedirect(reverse('receipt-view', args=[_id]))

@@ -1,0 +1,195 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}{% if edit_doc %}Ubah{% else %}Buat{% endif %} Penerimaan Barang {% endblock title %}
+
+{% block content %}
+
+<div class="container-fluid mt-0">
+    <div class="row">
+        <div class="col-xl-12 order-xl-1">
+            <form action="{% if edit_doc %}{% url 'receipt-edit' edit_doc.pk %}{% else %}{% url 'receipt-add' %}{% endif %}" method="post">
+                {% csrf_token %}
+                <div class="card">
+                    <div class="card-header">
+                        <div class="row">
+                            <div class="col-6 d-flex align-items-center">
+                                <h4 class="mb-2">{% if edit_doc %}Ubah{% else %}Buat{% endif %} Penerimaan Barang</h4>
+                            </div>
+                            <div class="col-6 text-end">
+                                <button type="submit" class="btn btn-sm bg-gradient-primary mb-0"><i class="fas fa-save"></i>&nbsp;&nbsp;Simpan Draft</button>
+                                <a href="{% if edit_doc %}{% url 'receipt-view' edit_doc.pk %}{% else %}{% url 'receipt-index' %}{% endif %}" class="btn btn-sm bg-gradient-dark mb-0"><i class="fas fa-reply"></i>&nbsp;&nbsp;Batal</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if message %}
+                        <div class="alert alert-danger text-white text-sm">
+                            {% if message|length > 0 %}
+                              {% for e in message %}<div>{{ e }}</div>{% endfor %}
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Header dokumen -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label class="text-muted text-xs">Gudang <span class="text-danger">*</span></label>
+                                {{ form.warehouse }}
+                                <div class="text-sm text-danger">{{ form.warehouse.errors }}</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="text-muted text-xs">Supplier</label>
+                                {{ form.partner }}
+                                <div class="text-sm text-danger">{{ form.partner.errors }}</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="text-muted text-xs">Tanggal Dokumen <span class="text-danger">*</span></label>
+                                {{ form.document_date }}
+                                <div class="text-sm text-danger">{{ form.document_date.errors }}</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="text-muted text-xs">Referensi (No. PO)</label>
+                                {{ form.reference }}
+                                <div class="text-sm text-danger">{{ form.reference.errors }}</div>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="text-muted text-xs">Catatan</label>
+                                {{ form.notes }}
+                                <div class="text-sm text-danger">{{ form.notes.errors }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Baris detail -->
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">Detail Barang</h6>
+                            <button type="button" id="add-line" class="btn btn-sm bg-gradient-primary mb-0"><i class="fas fa-plus"></i>&nbsp;&nbsp;Tambah Baris</button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table align-items-center mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Barang</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Lokasi Tujuan</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Qty</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Catatan</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lines">
+                                    {% for line in existing_lines %}
+                                    <tr class="line-row">
+                                        <td>
+                                            <select name="line_item" class="form-control form-select-sm line-item" required>
+                                                <option value="">-- Pilih Barang --</option>
+                                                {% for it in items %}
+                                                <option value="{{ it.pk }}" {% if it.pk == line.item_id %}selected{% endif %}>{{ it.sku }} — {{ it.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <select name="line_loc" class="form-control form-select-sm line-loc" required>
+                                                <option value="">-- Pilih Lokasi --</option>
+                                                {% for lo in locations %}
+                                                <option value="{{ lo.pk }}" data-wh="{{ lo.warehouse_id }}" {% if lo.pk == line.destination_location_id %}selected{% endif %}>{{ lo.warehouse.code }} · {{ lo.code }} {{ lo.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </td>
+                                        <td><input type="number" name="line_qty" class="form-control form-control-sm line-qty" step="0.0001" min="0.0001" value="{{ line.quantity }}" required></td>
+                                        <td><input type="text" name="line_note" class="form-control form-control-sm" value="{{ line.notes|default:'' }}"></td>
+                                        <td class="text-center"><button type="button" class="btn btn-sm bg-gradient-danger line-del">&times;</button></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Template baris kosong untuk ditambahkan via JS -->
+<template id="line-tpl">
+    <tr class="line-row">
+        <td>
+            <select name="line_item" class="form-control form-select-sm line-item" required>
+                <option value="">-- Pilih Barang --</option>
+                {% for it in items %}
+                <option value="{{ it.pk }}">{{ it.sku }} — {{ it.name }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td>
+            <select name="line_loc" class="form-control form-select-sm line-loc" required>
+                <option value="">-- Pilih Lokasi --</option>
+                {% for lo in locations %}
+                <option value="{{ lo.pk }}" data-wh="{{ lo.warehouse_id }}">{{ lo.warehouse.code }} · {{ lo.code }} {{ lo.name }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td><input type="number" name="line_qty" class="form-control form-control-sm line-qty" step="0.0001" min="0.0001" required></td>
+        <td><input type="text" name="line_note" class="form-control form-control-sm"></td>
+        <td class="text-center"><button type="button" class="btn btn-sm bg-gradient-danger line-del">&times;</button></td>
+    </tr>
+</template>
+
+{% endblock content %}
+
+{% block javascripts %}
+<script>
+    (function () {
+        var linesBody = document.getElementById('lines');
+        var tpl = document.getElementById('line-tpl');
+        var warehouseSel = document.getElementById('id_warehouse');
+
+        function cloneRow() {
+            return tpl.content.cloneNode(true);
+        }
+
+        function filterLocs() {
+            var wh = warehouseSel ? warehouseSel.value : '';
+            linesBody.querySelectorAll('.line-loc').forEach(function (sel) {
+                Array.prototype.forEach.call(sel.options, function (op) {
+                    if (!op.value) return;
+                    var match = !wh || op.getAttribute('data-wh') === wh;
+                    op.hidden = !match;
+                    op.disabled = !match;
+                });
+                if (sel.selectedOptions.length && sel.selectedOptions[0].disabled) {
+                    sel.value = '';
+                }
+            });
+        }
+
+        document.getElementById('add-line').addEventListener('click', function () {
+            linesBody.appendChild(cloneRow());
+            filterLocs();
+        });
+
+        linesBody.addEventListener('click', function (e) {
+            if (e.target.classList.contains('line-del')) {
+                var tr = e.target.closest('tr');
+                if (linesBody.querySelectorAll('tr').length > 1) {
+                    tr.remove();
+                } else {
+                    tr.querySelector('.line-item').value = '';
+                    tr.querySelector('.line-loc').value = '';
+                    tr.querySelector('.line-qty').value = '';
+                    tr.querySelector('[name=line_note]').value = '';
+                }
+            }
+        });
+
+        if (warehouseSel) warehouseSel.addEventListener('change', filterLocs);
+
+        // Pastikan selalu ada minimal satu baris
+        if (!linesBody.querySelector('tr')) {
+            linesBody.appendChild(cloneRow());
+        }
+        filterLocs();
+    })();
+</script>
+{% endblock javascripts %}

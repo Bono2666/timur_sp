@@ -1,0 +1,99 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %} Penerimaan Barang {% endblock title %}
+
+{% block content %}
+
+<div class="container-fluid py-0">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4 p-4">
+                <div class="row mb-4">
+                    <div class="col-6 d-flex align-items-center">
+                        <h4 class="mb-0">Penerimaan Barang</h4>
+                    </div>
+                    <div class="col-6 text-end">
+                        <a class="btn btn-sm bg-gradient-primary mb-0 {% if not btn.add and not request.user.is_superuser %}disabled{% endif %}" href="{% url 'receipt-add' %}"><i class="fas fa-plus"></i>&nbsp;&nbsp;Buat Penerimaan</a>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <form method="get" class="d-flex gap-2">
+                            <select name="status" class="form-control form-select-sm" onchange="this.form.submit()">
+                                <option value="">Semua Status</option>
+                                <option value="draft" {% if filter_status == 'draft' %}selected{% endif %}>Draft</option>
+                                <option value="submitted" {% if filter_status == 'submitted' %}selected{% endif %}>Submitted</option>
+                                <option value="approved" {% if filter_status == 'approved' %}selected{% endif %}>Approved</option>
+                                <option value="posted" {% if filter_status == 'posted' %}selected{% endif %}>Posted</option>
+                                <option value="cancelled" {% if filter_status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                            </select>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card-body px-0 pt-0 pb-2">
+                    <div class="table-responsive p-0">
+                        <table class="table hover align-items-center mb-0" id="myTable">
+                            <thead>
+                                <tr>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Nomor</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Tanggal</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Gudang</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Supplier</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Total Qty</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for d in data %}
+                                <tr data-href="{% url 'receipt-view' d.pk %}" class="cursor-pointer">
+                                    <td><h6 class="mb-0 text-sm">{{ d.number }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ d.document_date|date:'d/m/Y' }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ d.warehouse.code }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ d.partner.name|default:'-' }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ d.total_quantity }}</h6></td>
+                                    <td>
+                                        {% if d.status == 'draft' %}<span class="badge bg-gradient-secondary">Draft</span>
+                                        {% elif d.status == 'submitted' %}<span class="badge bg-gradient-info">Submitted</span>
+                                        {% elif d.status == 'approved' %}<span class="badge bg-gradient-warning">Approved</span>
+                                        {% elif d.status == 'posted' %}<span class="badge bg-gradient-success">Posted</span>
+                                        {% else %}<span class="badge bg-gradient-danger">Cancelled</span>{% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="6" class="text-center text-secondary text-sm py-4">Belum ada dokumen penerimaan.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block javascripts %}
+
+<script>
+    $(document).ready( function () {
+        $('#myTable').DataTable({
+            'language': {
+                'search': 'Cari: ',
+                'info': 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+                'lengthMenu': 'Tampilkan _MENU_ data',
+                'infoEmpty': '',
+                'zeroRecords': 'Tidak ada data',
+                'paginate': { 'next': 'Selanjutnya', 'previous': 'Sebelumnya' }
+            }
+        });
+
+        $(document).on('click', 'tbody tr', function() {
+            if ($(this).data('href')) { window.location = $(this).data('href'); }
+        });
+    } );
+</script>
+
+{% endblock javascripts %}

@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
+from decimal import Decimal
 from crum import get_current_user
 
 
@@ -373,3 +374,122 @@ class StockBalance(models.Model):
 
     def __str__(self):
         return '%s @%s = %s' % (self.item.sku, self.location.code, self.on_hand)
+
+
+# ==================================================================
+# Transaksi Gudang — Penerimaan Barang (Fase 2)
+# ==================================================================
+class DocumentSequence(models.Model):
+    """Penomoran dokumen otomatis & unik per tipe/tahun (locked allocation)."""
+    document_type = models.CharField(max_length=10)
+    year = models.IntegerField()
+    next_number = models.IntegerField(default=1)
+
+    class Meta:
+        verbose_name = 'Sequence Dokumen'
+        verbose_name_plural = 'Sequence Dokumen'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['document_type', 'year'], name='unique_seq_type_year')
+        ]
+
+    @classmethod
+    def next_number_for(cls, document_type):
+        from django.db import transaction
+        year = timezone.now().year
+        with transaction.atomic():
+            seq, _ = cls.objects.select_for_update().get_or_create(
+                document_type=document_type, year=year,
+                defaults={'next_number': 1})
+            current = seq.next_number
+            seq.next_number = current + 1
+            seq.save(update_fields=['next_number'])
+        return '%s/%d/%06d' % (document_type, year, current)
+
+
+class StockDocument(models.Model):
+    """Dokumen transaksi stok (untuk sekarang: penerimaan RCV)."""
+    TYPE_CHOICES = [
+        ('RCV', 'Penerimaan Barang'),
+        # ('OUT', 'Pengeluaran Barang'),   # fase berikutnya
+        # ('TRF', 'Transfer Stok'),
+        # ('ADJ', 'Penyesuaian Stok'),
+    ]
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('submitted', 'Submitted'),
+        ('approved', 'Approved'),
+        ('posted', 'Posted'),
+        ('cancelled', 'Cancelled'),
+    ]
+    document_type = models.CharField(
+        max_length=3, choices=TYPE_CHOICES, default='RCV')
+    number = models.CharField(max_length=30, unique=True)
+    warehouse = models.ForeignKey(
+        Warehouse, on_delete=models.PROTECT, related_name='documents')
+    partner = models.ForeignKey(
+        Partner, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='documents')
+    reference = models.CharField(max_length=50, null=True, blank=True)
+    document_date = models.DateField()
+    notes = models.CharField(max_length=255, null=True, blank=True)
+    status = models.CharField(
+        max_length=12, choices=STATUS_CHOICES, default='draft')
+    created_by = models.CharField(max_length=50)
+    submitted_by = models.CharField(max_length=50, null=True, blank=True)
+    approved_by = models.CharField(max_length=50, null=True, blank=True)
+    posted_at = models.DateTimeField(null=True, blank=True)
+    reject_reason = models.CharField(max_length=255, null=True, blank=True)
+    cancel_reason = models.CharField(max_length=255, null=True, blank=True)
+    entry_date = models.DateTimeField(null=True)
+    entry_by = models.CharField(max_length=50, null=True)
+    update_date = models.DateTimeField(null=True)
+    update_by = models.CharField(max_length=50, null=True)
+
+    class Meta:
+        verbose_name = 'Dokumen Stok'
+        verbose_name_plural = 'Dokumen Stok'
+        ordering = ['-document_date', '-id']
+        indexes = [
+            models.Index(fields=['document_type', 'status']),
+            models.Index(fields=['document_date']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.entry_date:
+            self.entry_date = timezone.now()
+            self.entry_by = _current_username()
+        self.update_date = timezone.now()
+        self.update_by = _current_username()
+        super(StockDocument, self).save(*args, **kwargs)
+
+    @property
+    def total_quantity(self):
+        return sum((l.quantity for l in self.lines.all()), Decimal('0'))
+
+    def __str__(self):
+        return self.number
+
+
+class StockDocumentLine(models.Model):
+    """Baris detail dokumen: item, qty, lokasi tujuan."""
+    document = models.ForeignKey(
+        StockDocument, on_delete=models.CASCADE, related_name='lines')
+    item = models.ForeignKey(Item, on_delete=models.PROTECT,
+                             related_name='document_lines')
+    destination_location = models.ForeignKey(
+        StorageLocation, on_delete=models.PROTECT, related_name='+')
+    quantity = models.DecimalField(max_digits=18, decimal_places=4)
+    notes = models.CharField(max_length=255, null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Baris Dokumen'
+        verbose_name_plural = 'Baris Dokumen'
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.quantity is not None and self.quantity <= 0:
+            raise ValidationError({'quantity': 'Kuantitas harus lebih besar dari 0.'})
+
+    def __str__(self):
+        return '%s x%s' % (self.item.sku, self.quantity)
