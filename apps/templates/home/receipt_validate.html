@@ -1,0 +1,164 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %} Validasi Penerimaan {% endblock title %}
+
+{% block content %}
+
+<div class="container-fluid mt-0">
+    <div class="row">
+        <div class="col-xl-12 order-xl-1">
+            <form action="{% url 'receipt-validate' data.pk %}" method="post">
+                {% csrf_token %}
+                <div class="card">
+                    <div class="card-header">
+                        <div class="row">
+                            <div class="col-6 d-flex align-items-center flex-wrap">
+                                <h4 class="mb-2 me-3">Validasi Penerimaan — {{ data.number }}</h4>
+                                {% if data.operation_type == 'staged' %}
+                                <span class="badge bg-gradient-info me-1">2 Tahap</span>
+                                {% else %}
+                                <span class="badge bg-gradient-secondary me-1">1 Tahap</span>
+                                {% endif %}
+                                {% if data.receiving_location %}
+                                <span class="badge bg-gradient-dark">Receiving: {{ data.receiving_location.code }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="col-6 text-end">
+                                <a href="{% url 'receipt-view' data.pk %}" class="btn btn-sm bg-gradient-dark mb-0"><i class="fas fa-reply"></i>&nbsp;&nbsp;Kembali</a>
+                                <button type="submit" class="btn btn-sm bg-gradient-success mb-0"><i class="fas fa-check-double"></i>&nbsp;&nbsp;Simpan Validasi</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if message %}
+                    <div class="m-4">
+                        <div class="alert alert-danger text-white text-sm">
+                            {% for e in message %}<div>{{ e }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="text-muted text-xs">Scan barcode / ketik SKU, lalu tekan Enter</label>
+                                <input type="text" id="scan-input" class="form-control" placeholder="Scan atau ketik SKU..." autocomplete="off">
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <p class="text-sm text-secondary mb-1">
+                                    Catatan: <em>diterima layak + ditolak = total diterima fisik</em>.
+                                    Barang ditolak/rusak wajib dialihkan ke lokasi karantina.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table align-items-center mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Barang</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Dipesan</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Diterima Fisik</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Diterima Layak</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Ditolak / Rusak</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Lokasi Karantina</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="validate-lines">
+                                    {% for line in lines %}
+                                    <tr data-barcode="{{ line.item.barcode|default:'' }}" data-sku="{{ line.item.sku|upper }}">
+                                        <td>
+                                            <h6 class="mb-0 text-sm">{{ line.item.sku }}</h6>
+                                            <p class="text-xs text-secondary mb-0">{{ line.item.name }}</p>
+                                        </td>
+                                        <td><h6 class="mb-0 text-sm">{{ line.quantity }}</h6></td>
+                                        <td><input type="number" step="0.0001" min="0" name="v_received" class="form-control form-control-sm v-received" value="{{ line.received_qty|default_if_none:'' }}" required></td>
+                                        <td><input type="number" step="0.0001" min="0" name="v_accepted" class="form-control form-control-sm v-accepted" value="{{ line.accepted_qty|default_if_none:'' }}"></td>
+                                        <td><input type="number" step="0.0001" min="0" name="v_rejected" class="form-control form-control-sm v-rejected" value="{{ line.rejected_qty|default_if_none:'' }}"></td>
+                                        <td>
+                                            <select name="v_quarantine" class="form-control form-select-sm v-quarantine">
+                                                <option value="">-- Pilih --</option>
+                                                {% for lo in quarantine_locations %}
+                                                <option value="{{ lo.pk }}" {% if line.quarantine_location_id == lo.pk %}selected{% endif %}>{{ lo.code }} {{ lo.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block javascripts %}
+<script>
+    (function () {
+        var scan = document.getElementById('scan-input');
+        var body = document.getElementById('validate-lines');
+
+        // Auto isi "diterima layak" = total diterima (selama belum diubah manual)
+        body.addEventListener('input', function (e) {
+            if (e.target.classList.contains('v-received')) {
+                var tr = e.target.closest('tr');
+                var accepted = tr.querySelector('.v-accepted');
+                if (!accepted.value) accepted.value = e.target.value;
+            }
+        });
+
+        // Submit: pastikan accepted + rejected == received (validasi ringan)
+        var form = scan.closest('form');
+        form.addEventListener('submit', function (ev) {
+            var rows = body.querySelectorAll('tr');
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                var rec = parseFloat(r.querySelector('.v-received').value || '0');
+                var acc = parseFloat(r.querySelector('.v-accepted').value || '0');
+                var rej = parseFloat(r.querySelector('.v-rejected').value || '0');
+                if (acc + rej !== rec) {
+                    ev.preventDefault();
+                    alert('Baris ' + (i + 1) + ': diterima layak + ditolak harus sama dengan total diterima fisik.');
+                    return;
+                }
+                if (rej > 0 && !r.querySelector('.v-quarantine').value) {
+                    ev.preventDefault();
+                    alert('Baris ' + (i + 1) + ': lokasi karantina wajib dipilih untuk barang ditolak.');
+                    return;
+                }
+            }
+        });
+
+        // Scan barcode / ketik SKU -> lompat ke baris barang
+        scan.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            var code = scan.value.trim().toUpperCase();
+            if (!code) return;
+            var rows = body.querySelectorAll('tr');
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                if (r.getAttribute('data-barcode') === code || r.getAttribute('data-sku') === code) {
+                    r.classList.add('table-active');
+                    r.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    var input = r.querySelector('.v-received');
+                    input.focus();
+                    input.select();
+                    setTimeout(function () { r.classList.remove('table-active'); }, 3000);
+                    scan.value = '';
+                    return;
+                }
+            }
+            alert('Barang dengan barcode/SKU "' + code + '" tidak ada pada dokumen ini.');
+            scan.select();
+        });
+
+        scan.focus();
+    })();
+</script>
+{% endblock javascripts %}

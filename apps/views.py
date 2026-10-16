@@ -5,7 +5,7 @@ from django.db.models import ProtectedError, Sum, F, Value
 from django.db.models.functions import Coalesce
 from decimal import Decimal
 from django.http import HttpResponseRedirect, JsonResponse
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from django.conf import settings
 from apps.forms import *
@@ -55,6 +55,9 @@ def home(request):
     rcv_posted_month = StockDocument.objects.filter(
         document_type='RCV', status='posted',
         posted_at__gte=bulan_ini).count()
+    rcv_putaway_pending = StockDocument.objects.filter(
+        document_type='RCV', status='posted',
+        putaway_status='pending').count()
 
     context = {
         'segment': 'index',
@@ -70,6 +73,7 @@ def home(request):
             'rcv_draft': rcv_draft,
             'rcv_pending': rcv_pending,
             'rcv_posted_month': rcv_posted_month,
+            'rcv_putaway_pending': rcv_putaway_pending,
         },
     }
     return render(request, 'home/index.html', context)
@@ -880,6 +884,9 @@ def _receipt_refs():
         'items': Item.objects.filter(is_active=True).order_by('sku'),
         'locations': StorageLocation.objects.filter(
             is_active=True).select_related('warehouse').order_by('warehouse__code', 'code'),
+        'receiving_locations': StorageLocation.objects.filter(
+            is_active=True, location_type='receiving'
+        ).select_related('warehouse').order_by('warehouse__code', 'code'),
     }
 
 
@@ -947,26 +954,57 @@ def _render_receipt_view(request, doc, error=None, extra_status=None):
     return render(request, 'home/receipt_view.html', ctx)
 
 
+def _balance_locked(location, item):
+    """Ambil/buat saldo (harus dipanggil di dalam transaction.atomic)."""
+    bal, _ = StockBalance.objects.select_for_update().get_or_create(
+        item=item, location=location,
+        defaults={'warehouse': location.warehouse,
+                  'on_hand': Decimal('0'), 'reserved': Decimal('0')})
+    return bal
+
+
+def _apply_ledger(warehouse, location, item, qty, move_type, reference, notes, actor):
+    """Tulis ledger + mutasi saldo (harus dalam transaction.atomic)."""
+    StockLedger.objects.create(
+        item=item, warehouse=warehouse, location=location, quantity=qty,
+        move_type=move_type, reference=reference, notes=notes,
+        actor=actor, posted_at=timezone.now())
+    bal = _balance_locked(location, item)
+    delta = qty if move_type == 'IN' else -qty
+    bal.on_hand = (bal.on_hand or Decimal('0')) + delta
+    bal.save(update_fields=['on_hand'])
+    return bal
+
+
 def _post_receipt(doc_id, actor):
-    """Posting atomik: tulis ledger IN + update saldo. Idempoten (status lock)."""
+    """Posting atomik: tulis ledger + update saldo. Idempoten (status lock)."""
     with transaction.atomic():
         doc = StockDocument.objects.select_for_update().get(pk=doc_id)
         if doc.status != 'approved':
             raise ValueError('Dokumen belum berstatus Approved.')
+        if doc.receive_status != 'done':
+            raise ValueError(
+                'Lakukan Validasi Penerimaan terlebih dahulu sebelum posting.')
         for line in doc.lines.all():
-            StockLedger.objects.create(
-                item=line.item, warehouse=doc.warehouse,
-                location=line.destination_location, quantity=line.quantity,
-                move_type='IN', reference=doc.number, notes=line.notes,
-                actor=actor, posted_at=timezone.now())
-            bal, _ = StockBalance.objects.select_for_update().get_or_create(
-                item=line.item, location=line.destination_location,
-                defaults={'warehouse': line.destination_location.warehouse,
-                          'on_hand': Decimal('0'), 'reserved': Decimal('0')})
-            bal.on_hand = (bal.on_hand or Decimal('0')) + line.quantity
-            bal.save(update_fields=['on_hand'])
+            accepted = line.accepted_qty or Decimal('0')
+            rejected = line.rejected_qty or Decimal('0')
+            # Barang layak: 1 tahap -> lokasi tujuan, 2 tahap -> lokasi receiving
+            if accepted > 0:
+                target = (doc.receiving_location
+                          if doc.operation_type == 'staged'
+                          else line.destination_location)
+                _apply_ledger(doc.warehouse, target, line.item, accepted, 'IN',
+                              doc.number,
+                              'Diterima layak (%s)' % line.item.sku, actor)
+            # Barang rusak/tolak -> lokasi karantina (US-RCV-04)
+            if rejected > 0 and line.quarantine_location:
+                _apply_ledger(doc.warehouse, line.quarantine_location,
+                              line.item, rejected, 'IN', doc.number,
+                              'Karantina/tolak (%s)' % line.item.sku, actor)
         doc.status = 'posted'
         doc.posted_at = timezone.now()
+        doc.putaway_status = ('pending' if doc.operation_type == 'staged'
+                              else 'none')
         doc.save()
     return doc
 
@@ -1130,3 +1168,185 @@ def receipt_post(request, _id):
         doc = StockDocument.objects.get(pk=_id)
         return _render_receipt_view(request, doc, error=str(e))
     return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='RCV')
+def receipt_validate(request, _id):
+    """Validasi penerimaan fisik (US-RCV-02): diterima / layak / ditolak."""
+    doc = get_object_or_404(StockDocument.objects.select_related(
+        'warehouse', 'receiving_location'), pk=_id)
+    if doc.status != 'approved':
+        return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+    lines = list(doc.lines.select_related(
+        'item', 'destination_location', 'quarantine_location'))
+    quarantine_locations = StorageLocation.objects.filter(
+        is_active=True, warehouse=doc.warehouse, location_type='quarantine')
+    errors = []
+
+    if request.POST:
+        received_l = request.POST.getlist('v_received')
+        accepted_l = request.POST.getlist('v_accepted')
+        rejected_l = request.POST.getlist('v_rejected')
+        quar_l = request.POST.getlist('v_quarantine')
+
+        def dec(raw):
+            raw = (raw or '').strip().replace(',', '')
+            return Decimal(raw) if raw else Decimal('0')
+
+        parsed = []
+        for i, line in enumerate(lines):
+            try:
+                received = dec(received_l[i] if i < len(received_l) else '')
+                accepted = dec(accepted_l[i] if i < len(accepted_l) else '')
+                rejected = dec(rejected_l[i] if i < len(rejected_l) else '')
+            except Exception:
+                errors.append('Baris %d: kuantitas tidak valid.' % (i + 1))
+                continue
+            if min(received, accepted, rejected) < 0:
+                errors.append('Baris %d: kuantitas tidak boleh negatif.' % (i + 1))
+                continue
+            if accepted + rejected != received:
+                errors.append(
+                    'Baris %d: (diterima layak + ditolak) harus sama dengan '
+                    'total diterima fisik.' % (i + 1))
+                continue
+            quar = None
+            if rejected > 0:
+                try:
+                    quar = StorageLocation.objects.get(
+                        pk=int(quar_l[i] if i < len(quar_l) else ''),
+                        warehouse=doc.warehouse, is_active=True)
+                except (StorageLocation.DoesNotExist, ValueError, TypeError):
+                    errors.append(
+                        'Baris %d: lokasi karantina wajib dipilih untuk '
+                        'barang ditolak.' % (i + 1))
+                    continue
+            parsed.append((line, received, accepted, rejected, quar))
+
+        if not errors:
+            now = timezone.now()
+            with transaction.atomic():
+                doc_locked = StockDocument.objects.select_for_update().get(pk=doc.pk)
+                if doc_locked.status != 'approved':
+                    errors.append('Status dokumen berubah, silakan muat ulang.')
+                else:
+                    for line, received, accepted, rejected, quar in parsed:
+                        line.received_qty = received
+                        line.accepted_qty = accepted
+                        line.rejected_qty = rejected
+                        line.quarantine_location = quar
+                        line.validated_by = request.user.user_id
+                        line.validated_at = now
+                        line.save()
+                    doc_locked.receive_status = 'done'
+                    doc_locked.validated_by = request.user.user_id
+                    doc_locked.validated_at = now
+                    doc_locked.save()
+            if not errors:
+                return HttpResponseRedirect(reverse('receipt-view', args=[doc.pk]))
+
+    ctx = _rctx(request, 'validate', data=doc, lines=lines,
+                quarantine_locations=quarantine_locations)
+    if errors:
+        ctx['message'] = errors
+    return render(request, 'home/receipt_validate.html', ctx)
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='RCV')
+def receipt_putaway(request, _id):
+    """Putaway 2 tahap (US-RCV-03): pindah receiving -> lokasi penyimpanan."""
+    doc = get_object_or_404(StockDocument.objects.select_related(
+        'warehouse', 'receiving_location'), pk=_id)
+    if doc.operation_type != 'staged' or doc.status != 'posted':
+        return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+    lines = [l for l in doc.lines.select_related(
+        'item', 'destination_location') if l.putaway_remaining > 0]
+    if not lines:
+        return HttpResponseRedirect(reverse('receipt-view', args=[_id]))
+    errors = []
+
+    if request.POST:
+        qty_l = request.POST.getlist('p_qty')
+
+        def dec(raw):
+            raw = (raw or '').strip().replace(',', '')
+            return Decimal(raw) if raw else Decimal('0')
+
+        parsed = []
+        for i, line in enumerate(lines):
+            try:
+                qty = dec(qty_l[i] if i < len(qty_l) else '')
+            except Exception:
+                errors.append('Baris %d: kuantitas tidak valid.' % (i + 1))
+                continue
+            if qty < 0:
+                errors.append('Baris %d: kuantitas tidak boleh negatif.' % (i + 1))
+                continue
+            if qty > line.putaway_remaining:
+                errors.append(
+                    'Baris %d: melebihi sisa putaway (%s).' % (i + 1, line.putaway_remaining))
+                continue
+            parsed.append((line, qty))
+
+        if not errors and not any(q > 0 for _, q in parsed):
+            errors.append('Minimal 1 baris harus memiliki kuantitas putaway.')
+
+        if not errors:
+            try:
+                with transaction.atomic():
+                    doc_locked = StockDocument.objects.select_for_update().get(pk=doc.pk)
+                    if doc_locked.status != 'posted' or \
+                            doc_locked.operation_type != 'staged':
+                        raise ValueError('Status dokumen berubah, silakan muat ulang.')
+                    if not doc_locked.receiving_location:
+                        raise ValueError('Dokumen tidak memiliki lokasi receiving.')
+                    # Kunci & verifikasi ulang semua baris sebelum mutasi apa pun
+                    fresh = []
+                    for line, qty in parsed:
+                        if qty == 0:
+                            continue
+                        lf = StockDocumentLine.objects.select_for_update().get(pk=line.pk)
+                        if qty > lf.putaway_remaining:
+                            raise ValueError(
+                                'Baris %s: sisa putaway berubah menjadi %s.'
+                                % (lf.item.sku, lf.putaway_remaining))
+                        fresh.append((lf, qty))
+                    now = timezone.now()
+                    for lf, qty in fresh:
+                        bal_recv = _balance_locked(
+                            doc_locked.receiving_location, lf.item)
+                        if (bal_recv.on_hand or Decimal('0')) < qty:
+                            raise ValueError(
+                                'Stok di lokasi receiving tidak mencukupi '
+                                'untuk %s.' % lf.item.sku)
+                        _apply_ledger(
+                            doc_locked.warehouse, doc_locked.receiving_location,
+                            lf.item, qty, 'OUT', doc_locked.number,
+                            'Putaway dari receiving (%s)' % lf.item.sku,
+                            request.user.user_id)
+                        _apply_ledger(
+                            doc_locked.warehouse, lf.destination_location,
+                            lf.item, qty, 'IN', doc_locked.number,
+                            'Putaway ke %s (%s)' % (
+                                lf.destination_location.code, lf.item.sku),
+                            request.user.user_id)
+                        lf.putaway_qty = (lf.putaway_qty or Decimal('0')) + qty
+                        lf.putaway_by = request.user.user_id
+                        lf.putaway_at = now
+                        if lf.putaway_remaining <= 0:
+                            lf.putaway_status = 'done'
+                        lf.save()
+                    if not doc_locked.putaway_pending_lines:
+                        doc_locked.putaway_status = 'done'
+                        doc_locked.save()
+            except ValueError as e:
+                errors.append(str(e))
+            if not errors:
+                return HttpResponseRedirect(reverse('receipt-view', args=[doc.pk]))
+
+    ctx = _rctx(request, 'putaway', data=doc, lines=lines)
+    if errors:
+        ctx['message'] = errors
+    return render(request, 'home/receipt_putaway.html', ctx)

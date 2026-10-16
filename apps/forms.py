@@ -511,6 +511,8 @@ class FormReceipt(ModelForm):
         self.fields['reference'].label = 'Referensi (No. PO)'
         self.fields['document_date'].label = 'Tanggal Dokumen'
         self.fields['notes'].label = 'Catatan'
+        self.fields['operation_type'].label = 'Skema Penerimaan'
+        self.fields['receiving_location'].label = 'Lokasi Receiving'
         self.fields['warehouse'].widget = forms.Select(
             {'class': 'form-control form-select-sm'})
         self.fields['partner'].widget = forms.Select(
@@ -522,7 +524,36 @@ class FormReceipt(ModelForm):
             {'class': 'form-control-sm', 'type': 'date'})
         self.fields['notes'].widget = forms.TextInput(
             {'class': 'form-control-sm'})
+        self.fields['operation_type'].widget = forms.Select(
+            {'class': 'form-control form-select-sm', 'id': 'id_operation_type'})
+        self.fields['receiving_location'].widget = forms.Select(
+            {'class': 'form-control form-select-sm', 'id': 'id_receiving_location'})
+        self.fields['receiving_location'].required = False
+
+    def clean(self):
+        cleaned = super(FormReceipt, self).clean()
+        operation_type = cleaned.get('operation_type')
+        receiving_location = cleaned.get('receiving_location')
+        warehouse = cleaned.get('warehouse')
+        if operation_type == 'staged':
+            if not receiving_location:
+                self.add_error(
+                    'receiving_location',
+                    'Lokasi receiving wajib diisi untuk skema 2 tahap.')
+            elif warehouse and receiving_location.warehouse_id != warehouse.pk:
+                self.add_error(
+                    'receiving_location',
+                    'Lokasi receiving harus berada di gudang yang sama '
+                    'dengan dokumen.')
+        elif receiving_location and warehouse and \
+                receiving_location.warehouse_id != warehouse.pk:
+            self.add_error(
+                'receiving_location',
+                'Lokasi receiving harus berada di gudang yang sama '
+                'dengan dokumen.')
+        return cleaned
 
     class Meta:
         model = StockDocument
-        fields = ['warehouse', 'partner', 'reference', 'document_date', 'notes']
+        fields = ['warehouse', 'partner', 'reference', 'document_date',
+                  'operation_type', 'receiving_location', 'notes']

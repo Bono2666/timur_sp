@@ -435,6 +435,29 @@ class StockDocument(models.Model):
     notes = models.CharField(max_length=255, null=True, blank=True)
     status = models.CharField(
         max_length=12, choices=STATUS_CHOICES, default='draft')
+    # --- 2 tahap (Fase 2b) ---
+    operation_type = models.CharField(
+        max_length=8, choices=[
+            ('direct', '1 Tahap — langsung ke lokasi penyimpanan'),
+            ('staged', '2 Tahap — receiving lalu putaway'),
+        ], default='direct')
+    receiving_location = models.ForeignKey(
+        StorageLocation, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='+',
+        help_text='Lokasi receiving (wajib untuk skema 2 tahap).')
+    receive_status = models.CharField(
+        max_length=12, choices=[
+            ('pending', 'Menunggu validasi'),
+            ('done', 'Tervalidasi'),
+        ], default='pending')
+    validated_by = models.CharField(max_length=50, null=True, blank=True)
+    validated_at = models.DateTimeField(null=True, blank=True)
+    putaway_status = models.CharField(
+        max_length=12, choices=[
+            ('none', 'Tidak perlu putaway'),
+            ('pending', 'Menunggu putaway'),
+            ('done', 'Putaway selesai'),
+        ], default='none')
     created_by = models.CharField(max_length=50)
     submitted_by = models.CharField(max_length=50, null=True, blank=True)
     approved_by = models.CharField(max_length=50, null=True, blank=True)
@@ -467,12 +490,32 @@ class StockDocument(models.Model):
     def total_quantity(self):
         return sum((l.quantity for l in self.lines.all()), Decimal('0'))
 
+    @property
+    def total_received(self):
+        return sum((l.received_qty or Decimal('0')
+                    for l in self.lines.all()), Decimal('0'))
+
+    @property
+    def total_accepted(self):
+        return sum((l.accepted_qty or Decimal('0')
+                    for l in self.lines.all()), Decimal('0'))
+
+    @property
+    def total_rejected(self):
+        return sum((l.rejected_qty or Decimal('0')
+                    for l in self.lines.all()), Decimal('0'))
+
+    @property
+    def putaway_pending_lines(self):
+        """Baris staged yang masih punya sisa putaway."""
+        return [l for l in self.lines.all() if l.putaway_remaining > 0]
+
     def __str__(self):
         return self.number
 
 
 class StockDocumentLine(models.Model):
-    """Baris detail dokumen: item, qty, lokasi tujuan."""
+    """Baris detail dokumen: item, qty, lokasi tujuan + hasil validasi."""
     document = models.ForeignKey(
         StockDocument, on_delete=models.CASCADE, related_name='lines')
     item = models.ForeignKey(Item, on_delete=models.PROTECT,
@@ -481,6 +524,29 @@ class StockDocumentLine(models.Model):
         StorageLocation, on_delete=models.PROTECT, related_name='+')
     quantity = models.DecimalField(max_digits=18, decimal_places=4)
     notes = models.CharField(max_length=255, null=True, blank=True)
+    # --- hasil validasi penerimaan (US-RCV-02) ---
+    received_qty = models.DecimalField(
+        max_digits=18, decimal_places=4, null=True, blank=True)
+    accepted_qty = models.DecimalField(
+        max_digits=18, decimal_places=4, null=True, blank=True)
+    rejected_qty = models.DecimalField(
+        max_digits=18, decimal_places=4, null=True, blank=True)
+    quarantine_location = models.ForeignKey(
+        StorageLocation, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='+',
+        help_text='Lokasi karantina untuk barang rusak/tolak.')
+    validated_by = models.CharField(max_length=50, null=True, blank=True)
+    validated_at = models.DateTimeField(null=True, blank=True)
+    # --- putaway (US-RCV-03) ---
+    putaway_qty = models.DecimalField(
+        max_digits=18, decimal_places=4, null=True, blank=True)
+    putaway_status = models.CharField(
+        max_length=12, choices=[
+            ('pending', 'Menunggu putaway'),
+            ('done', 'Putaway selesai'),
+        ], default='pending')
+    putaway_by = models.CharField(max_length=50, null=True, blank=True)
+    putaway_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = 'Baris Dokumen'
@@ -490,6 +556,13 @@ class StockDocumentLine(models.Model):
         from django.core.exceptions import ValidationError
         if self.quantity is not None and self.quantity <= 0:
             raise ValidationError({'quantity': 'Kuantitas harus lebih besar dari 0.'})
+
+    @property
+    def putaway_remaining(self):
+        """Sisa qty yang masih harus diputaway dari lokasi receiving."""
+        if self.accepted_qty is None:
+            return Decimal('0')
+        return (self.accepted_qty or Decimal('0')) - (self.putaway_qty or Decimal('0'))
 
     def __str__(self):
         return '%s x%s' % (self.item.sku, self.quantity)

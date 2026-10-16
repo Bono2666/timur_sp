@@ -10,13 +10,22 @@
             <div class="card">
                 <div class="card-header">
                     <div class="row">
-                        <div class="col-5 d-flex align-items-center">
+                        <div class="col-5 d-flex align-items-center flex-wrap">
                             <h4 class="mb-2 me-3">{{ data.number }}</h4>
                             {% if data.status == 'draft' %}<span class="badge bg-gradient-secondary">Draft</span>
                             {% elif data.status == 'submitted' %}<span class="badge bg-gradient-info">Submitted</span>
                             {% elif data.status == 'approved' %}<span class="badge bg-gradient-warning">Approved</span>
                             {% elif data.status == 'posted' %}<span class="badge bg-gradient-success">Posted</span>
                             {% else %}<span class="badge bg-gradient-danger">Cancelled</span>{% endif %}
+                            <span class="badge bg-gradient-dark me-1">{% if data.operation_type == 'staged' %}2 Tahap{% else %}1 Tahap{% endif %}</span>
+                            {% if data.status == 'approved' or data.status == 'posted' %}
+                              {% if data.receive_status == 'done' %}<span class="badge bg-gradient-success me-1">Validasi ✓</span>
+                              {% else %}<span class="badge bg-gradient-warning me-1">Belum divalidasi</span>{% endif %}
+                            {% endif %}
+                            {% if data.status == 'posted' and data.operation_type == 'staged' %}
+                              {% if data.putaway_status == 'done' %}<span class="badge bg-gradient-success me-1">Putaway ✓</span>
+                              {% elif data.putaway_status == 'pending' %}<span class="badge bg-gradient-warning me-1">Putaway pending</span>{% endif %}
+                            {% endif %}
                         </div>
                         <div class="col-7 text-end">
                             <a href="{% url 'receipt-index' %}" class="btn btn-sm bg-gradient-dark mb-0"><i class="fas fa-reply"></i>&nbsp;&nbsp;Kembali</a>
@@ -33,7 +42,15 @@
                               <button class="btn btn-sm bg-gradient-warning mb-0" data-bs-toggle="modal" data-bs-target="#modal-reject"><i class="fas fa-times"></i>&nbsp;&nbsp;Tolak</button>
 
                             {% elif data.status == 'approved' %}
+                              <a href="{% url 'receipt-validate' data.pk %}" class="btn btn-sm bg-gradient-info mb-0"><i class="fas fa-clipboard-check"></i>&nbsp;&nbsp;{% if data.receive_status == 'done' %}Ulangi Validasi{% else %}Validasi Penerimaan{% endif %}</a>
+                              {% if data.receive_status == 'done' %}
                               <button class="btn btn-sm bg-gradient-success mb-0" data-bs-toggle="modal" data-bs-target="#modal-post"><i class="fas fa-database"></i>&nbsp;&nbsp;Post</button>
+                              {% endif %}
+
+                            {% elif data.status == 'posted' %}
+                              {% if data.operation_type == 'staged' and data.putaway_status == 'pending' %}
+                              <a href="{% url 'receipt-putaway' data.pk %}" class="btn btn-sm bg-gradient-success mb-0"><i class="fas fa-dolly"></i>&nbsp;&nbsp;Lanjut Putaway</a>
+                              {% endif %}
                             {% endif %}
                         </div>
                     </div>
@@ -200,6 +217,39 @@
                     </div></div>
                     {% endif %}
 
+                    {% if data.status != 'draft' %}
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Skema Penerimaan</p>
+                            <h6 class="mb-0 text-sm">{% if data.operation_type == 'staged' %}2 Tahap (receiving → putaway){% else %}1 Tahap (langsung){% endif %}</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Lokasi Receiving</p>
+                            <h6 class="mb-0 text-sm">{{ data.receiving_location.code|default:'-' }}</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Divalidasi oleh</p>
+                            <h6 class="mb-0 text-sm">{{ data.validated_by|default:'-' }}{% if data.validated_at %} ({{ data.validated_at|date:'d/m/Y H:i' }}){% endif %}</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Putaway</p>
+                            <h6 class="mb-0 text-sm">
+                                {% if data.putaway_status == 'none' %}-{% elif data.putaway_status == 'done' %}Selesai{% else %}Menunggu{% endif %}
+                            </h6>
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Total Diterima Layak</p>
+                            <h6 class="mb-0 text-sm">{{ data.total_accepted }}</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-xxs text-uppercase text-secondary mb-1">Total Ditolak / Karantina</p>
+                            <h6 class="mb-0 text-sm {% if data.total_rejected > 0 %}text-danger{% endif %}">{{ data.total_rejected }}</h6>
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <!-- Tabel baris -->
                     <h6 class="mb-2">Detail Barang</h6>
                     <div class="table-responsive">
@@ -210,7 +260,14 @@
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Barang</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Lokasi Tujuan</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Qty</th>
+                                    {% if data.receive_status == 'done' %}
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Diterima</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Layak</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Ditolak</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Karantina / Putaway</th>
+                                    {% else %}
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Catatan</th>
+                                    {% endif %}
                                 </tr>
                             </thead>
                             <tbody>
@@ -220,7 +277,25 @@
                                     <td><h6 class="mb-0 text-sm">{{ line.item.name }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ line.destination_location.warehouse.code }} · {{ line.destination_location.code }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ line.quantity }}</h6></td>
+                                    {% if data.receive_status == 'done' %}
+                                    <td><h6 class="mb-0 text-sm">{{ line.received_qty|default_if_none:'-' }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ line.accepted_qty|default_if_none:'-' }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm {% if line.rejected_qty > 0 %}text-danger{% endif %}">{{ line.rejected_qty|default_if_none:'-' }}</h6></td>
+                                    <td>
+                                        <h6 class="mb-0 text-sm">
+                                        {% if line.quarantine_location %}→ {{ line.quarantine_location.code }}{% endif %}
+                                        {% if data.operation_type == 'staged' %}
+                                          {% if line.putaway_remaining > 0 %}
+                                            <span class="badge bg-gradient-warning">Putaway {{ line.putaway_remaining }}</span>
+                                          {% elif line.putaway_status == 'done' %}
+                                            <span class="badge bg-gradient-success">Putaway ✓</span>
+                                          {% endif %}
+                                        {% endif %}
+                                        </h6>
+                                    </td>
+                                    {% else %}
                                     <td><h6 class="mb-0 text-sm">{{ line.notes|default:'-' }}</h6></td>
+                                    {% endif %}
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -228,7 +303,14 @@
                                 <tr>
                                     <td colspan="3" class="text-end text-uppercase text-xxs text-secondary font-weight-bolder">Total</td>
                                     <td class="font-weight-bolder">{{ data.total_quantity }}</td>
+                                    {% if data.receive_status == 'done' %}
+                                    <td class="font-weight-bolder">{{ data.total_received }}</td>
+                                    <td class="font-weight-bolder">{{ data.total_accepted }}</td>
+                                    <td class="font-weight-bolder">{{ data.total_rejected }}</td>
                                     <td></td>
+                                    {% else %}
+                                    <td></td>
+                                    {% endif %}
                                 </tr>
                             </tfoot>
                         </table>

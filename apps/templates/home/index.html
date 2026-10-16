@@ -165,6 +165,10 @@
             <p class="text-sm mb-0 mt-3 text-warning font-weight-bold mb-0">
               {{ kpi.rcv_pending }} menunggu persetujuan
             </p>
+            {% elif kpi.rcv_putaway_pending > 0 %}
+            <p class="text-sm mb-0 mt-3 text-warning font-weight-bold mb-0">
+              {{ kpi.rcv_putaway_pending }} menunggu putaway
+            </p>
             {% elif kpi.rcv_draft > 0 %}
             <p class="text-sm mb-0 mt-3 text-secondary mb-0">
               {{ kpi.rcv_draft }} masih draft

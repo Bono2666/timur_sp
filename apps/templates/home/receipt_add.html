@@ -54,6 +54,21 @@
                             </div>
                         </div>
                         <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label class="text-muted text-xs">Skema Penerimaan</label>
+                                {{ form.operation_type }}
+                                <div class="text-sm text-danger">{{ form.operation_type.errors }}</div>
+                            </div>
+                            <div class="col-md-3" id="receiving-field" style="display:none;">
+                                <label class="text-muted text-xs">Lokasi Receiving</label>
+                                <select name="receiving_location" id="id_receiving_location" class="form-control form-select-sm">
+                                    <option value="">-- Pilih Lokasi Receiving --</option>
+                                    {% for lo in receiving_locations %}
+                                    <option value="{{ lo.pk }}" data-wh="{{ lo.warehouse_id }}" {% if form.receiving_location.value|default:''|stringformat:'s' == lo.pk|stringformat:'s' %}selected{% endif %}>{{ lo.warehouse.code }} · {{ lo.code }} {{ lo.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="text-sm text-danger">{{ form.receiving_location.errors }}</div>
+                            </div>
                             <div class="col-md-6">
                                 <label class="text-muted text-xs">Catatan</label>
                                 {{ form.notes }}
@@ -184,6 +199,36 @@
         });
 
         if (warehouseSel) warehouseSel.addEventListener('change', filterLocs);
+
+        // --- Skema 1/2 tahap: tampil/sembunyikan lokasi receiving ---
+        var opTypeSel = document.getElementById('id_operation_type');
+        var recvField = document.getElementById('receiving-field');
+        var recvSel = document.getElementById('id_receiving_location');
+
+        function syncReceiving() {
+            var staged = opTypeSel && opTypeSel.value === 'staged';
+            if (recvField) recvField.style.display = staged ? '' : 'none';
+            if (recvSel) recvSel.required = !!staged;
+            filterRecv();
+        }
+
+        function filterRecv() {
+            if (!recvSel) return;
+            var wh = warehouseSel ? warehouseSel.value : '';
+            Array.prototype.forEach.call(recvSel.options, function (op) {
+                if (!op.value) return;
+                var match = !wh || op.getAttribute('data-wh') === wh;
+                op.hidden = !match;
+                op.disabled = !match;
+            });
+            if (recvSel.selectedOptions.length && recvSel.selectedOptions[0].disabled) {
+                recvSel.value = '';
+            }
+        }
+
+        if (opTypeSel) opTypeSel.addEventListener('change', syncReceiving);
+        if (warehouseSel) warehouseSel.addEventListener('change', filterRecv);
+        syncReceiving();
 
         // Pastikan selalu ada minimal satu baris
         if (!linesBody.querySelector('tr')) {

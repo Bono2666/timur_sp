@@ -1,0 +1,120 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %} Putaway {% endblock title %}
+
+{% block content %}
+
+<div class="container-fluid mt-0">
+    <div class="row">
+        <div class="col-xl-12 order-xl-1">
+            <form action="{% url 'receipt-putaway' data.pk %}" method="post">
+                {% csrf_token %}
+                <div class="card">
+                    <div class="card-header">
+                        <div class="row">
+                            <div class="col-6 d-flex align-items-center flex-wrap">
+                                <h4 class="mb-2 me-3">Putaway — {{ data.number }}</h4>
+                                <span class="badge bg-gradient-info me-1">2 Tahap</span>
+                                {% if data.receiving_location %}
+                                <span class="badge bg-gradient-dark">Receiving: {{ data.receiving_location.code }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="col-6 text-end">
+                                <a href="{% url 'receipt-view' data.pk %}" class="btn btn-sm bg-gradient-dark mb-0"><i class="fas fa-reply"></i>&nbsp;&nbsp;Kembali</a>
+                                <button type="submit" class="btn btn-sm bg-gradient-success mb-0"><i class="fas fa-dolly"></i>&nbsp;&nbsp;Simpan Putaway</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if message %}
+                    <div class="m-4">
+                        <div class="alert alert-danger text-white text-sm">
+                            {% for e in message %}<div>{{ e }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="text-muted text-xs">Scan barcode / ketik SKU, lalu tekan Enter</label>
+                                <input type="text" id="scan-input" class="form-control" placeholder="Scan atau ketik SKU..." autocomplete="off">
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <p class="text-sm text-secondary mb-1">
+                                    Pindahkan barang dari lokasi receiving ke lokasi penyimpanan tujuan.
+                                    Kosongkan kuantitas baris yang tidak dipindahkan sekarang.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table align-items-center mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Barang</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Dari</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Ke</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Sisa</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Qty Dipindahkan</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="putaway-lines">
+                                    {% for line in lines %}
+                                    <tr data-barcode="{{ line.item.barcode|default:'' }}" data-sku="{{ line.item.sku|upper }}">
+                                        <td>
+                                            <h6 class="mb-0 text-sm">{{ line.item.sku }}</h6>
+                                            <p class="text-xs text-secondary mb-0">{{ line.item.name }}</p>
+                                        </td>
+                                        <td><h6 class="mb-0 text-sm">{{ data.receiving_location.code }}</h6></td>
+                                        <td><h6 class="mb-0 text-sm">{{ line.destination_location.code }}</h6></td>
+                                        <td><h6 class="mb-0 text-sm">{{ line.putaway_remaining }}</h6></td>
+                                        <td><input type="number" step="0.0001" min="0" name="p_qty" class="form-control form-control-sm p-qty" value="{{ line.putaway_remaining }}"></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block javascripts %}
+<script>
+    (function () {
+        var scan = document.getElementById('scan-input');
+        var body = document.getElementById('putaway-lines');
+
+        // Scan barcode / ketik SKU -> lompat ke baris barang
+        scan.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            var code = scan.value.trim().toUpperCase();
+            if (!code) return;
+            var rows = body.querySelectorAll('tr');
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                if (r.getAttribute('data-barcode') === code || r.getAttribute('data-sku') === code) {
+                    r.classList.add('table-active');
+                    r.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    var input = r.querySelector('.p-qty');
+                    input.focus();
+                    input.select();
+                    setTimeout(function () { r.classList.remove('table-active'); }, 3000);
+                    scan.value = '';
+                    return;
+                }
+            }
+            alert('Barang dengan barcode/SKU "' + code + '" tidak ada dalam daftar putaway.');
+            scan.select();
+        });
+
+        scan.focus();
+    })();
+</script>
+{% endblock javascripts %}

@@ -111,4 +111,8 @@ urlpatterns = [
          views.receipt_cancel, name='receipt-cancel'),
     path('warehouse/receipt/<int:_id>/post/',
          views.receipt_post, name='receipt-post'),
+    path('warehouse/receipt/<int:_id>/validate/',
+         views.receipt_validate, name='receipt-validate'),
+    path('warehouse/receipt/<int:_id>/putaway/',
+         views.receipt_putaway, name='receipt-putaway'),
 ]
