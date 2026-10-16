@@ -1,6 +1,9 @@
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.db import connection, IntegrityError
+from django.db.models import ProtectedError, Sum, F, Value
+from django.db.models.functions import Coalesce
+from decimal import Decimal
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.urls import reverse
@@ -10,11 +13,44 @@ from apps.models import *
 from authentication.decorators import role_required
 
 
+def _ctx(request, segment, crud, menu_id, **extra):
+    """Context dasar halaman master (role + tombol aksi per menu)."""
+    ctx = {
+        'segment': segment,
+        'group_segment': 'master',
+        'crud': crud,
+        'role': Auth.objects.filter(user_id=request.user.user_id).values_list(
+            'menu_id', flat=True),
+        'btn': Auth.objects.get(user_id=request.user.user_id, menu_id=menu_id)
+        if not request.user.is_superuser else Auth.objects.all(),
+    }
+    ctx.update(extra)
+    return ctx
+
+
 @login_required(login_url='/login/')
 def home(request):
+    # KPI Dashboard Pergudangan (Fase 1: master + saldo)
+    total_sku = Item.objects.filter(is_active=True).count()
+    total_gudang = Warehouse.objects.filter(is_active=True).count()
+    total_lokasi = StorageLocation.objects.filter(is_active=True).count()
+    total_mitra = Partner.objects.filter(is_active=True).count()
+    total_stok = StockBalance.objects.aggregate(t=Sum('on_hand'))['t'] or 0
+    di_bawah_minimum = Item.objects.filter(is_active=True).annotate(
+        onhand=Coalesce(Sum('balances__on_hand'), Value(Decimal('0')))
+    ).filter(minimum_stock__gt=0, onhand__lt=F('minimum_stock')).count()
+
     context = {
         'segment': 'index',
         'role': Auth.objects.filter(user_id=request.user.user_id).values_list('menu_id', flat=True),
+        'kpi': {
+            'sku': total_sku,
+            'gudang': total_gudang,
+            'lokasi': total_lokasi,
+            'mitra': total_mitra,
+            'stok': total_stok,
+            'below_min': di_bawah_minimum,
+        },
     }
     return render(request, 'home/index.html', context)
 
@@ -481,3 +517,320 @@ def menu_view(request, _id):
         'btn': Auth.objects.get(user_id=request.user.user_id, menu_id='MENU') if not request.user.is_superuser else Auth.objects.all(),
     }
     return render(request, 'home/menu_view.html', context)
+
+
+# ==================================================================
+# Master: Satuan
+# ==================================================================
+@login_required(login_url='/login/')
+@role_required(allowed_roles='SAT')
+def unit_index(request):
+    data = Unit.objects.all().order_by('code')
+    return render(request, 'home/unit_index.html', _ctx(request, 'unit', 'index', 'SAT', data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='SAT')
+def unit_add(request):
+    if request.POST:
+        form = FormUnit(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse('unit-view', args=[form.instance.pk]))
+        return render(request, 'home/unit_add.html', _ctx(request, 'unit', 'add', 'SAT', form=form, message=form.errors))
+    return render(request, 'home/unit_add.html', _ctx(request, 'unit', 'add', 'SAT', form=FormUnit()))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='SAT')
+def unit_view(request, _id):
+    data = Unit.objects.get(pk=_id)
+    form = FormUnitView(instance=data)
+    return render(request, 'home/unit_view.html', _ctx(request, 'unit', 'view', 'SAT', form=form, data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='SAT')
+def unit_update(request, _id):
+    data = Unit.objects.get(pk=_id)
+    if request.POST:
+        form = FormUnit(request.POST, instance=data)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse('unit-view', args=[_id]))
+        return render(request, 'home/unit_view.html', _ctx(request, 'unit', 'update', 'SAT', form=FormUnitView(instance=data), data=data, message=form.errors))
+    return render(request, 'home/unit_view.html', _ctx(request, 'unit', 'update', 'SAT', form=FormUnit(instance=data), data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='SAT')
+def unit_delete(request, _id):
+    Unit.objects.get(pk=_id).delete()
+    return HttpResponseRedirect(reverse('unit-index'))
+
+
+# ==================================================================
+# Master: Kategori Barang
+# ==================================================================
+@login_required(login_url='/login/')
+@role_required(allowed_roles='KTG')
+def category_index(request):
+    data = ItemCategory.objects.all().order_by('code')
+    return render(request, 'home/category_index.html', _ctx(request, 'category', 'index', 'KTG', data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='KTG')
+def category_add(request):
+    if request.POST:
+        form = FormCategory(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse('category-view', args=[form.instance.pk]))
+        return render(request, 'home/category_add.html', _ctx(request, 'category', 'add', 'KTG', form=form, message=form.errors))
+    return render(request, 'home/category_add.html', _ctx(request, 'category', 'add', 'KTG', form=FormCategory()))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='KTG')
+def category_view(request, _id):
+    data = ItemCategory.objects.get(pk=_id)
+    form = FormCategoryView(instance=data)
+    return render(request, 'home/category_view.html', _ctx(request, 'category', 'view', 'KTG', form=form, data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='KTG')
+def category_update(request, _id):
+    data = ItemCategory.objects.get(pk=_id)
+    if request.POST:
+        form = FormCategory(request.POST, instance=data)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse('category-view', args=[_id]))
+        return render(request, 'home/category_view.html', _ctx(request, 'category', 'update', 'KTG', form=FormCategoryView(instance=data), data=data, message=form.errors))
+    return render(request, 'home/category_view.html', _ctx(request, 'category', 'update', 'KTG', form=FormCategory(instance=data), data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='KTG')
+def category_delete(request, _id):
+    data = ItemCategory.objects.get(pk=_id)
+    try:
+        data.delete()
+    except ProtectedError:
+        pass
+    return HttpResponseRedirect(reverse('category-index'))
+
+
+# ==================================================================
+# Master: Mitra (Supplier / Pelanggan)
+# ==================================================================
+@login_required(login_url='/login/')
+@role_required(allowed_roles='MIT')
+def partner_index(request):
+    data = Partner.objects.all().order_by('code')
+    return render(request, 'home/partner_index.html', _ctx(request, 'partner', 'index', 'MIT', data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='MIT')
+def partner_add(request):
+    if request.POST:
+        form = FormPartner(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse('partner-view', args=[form.instance.pk]))
+        return render(request, 'home/partner_add.html', _ctx(request, 'partner', 'add', 'MIT', form=form, message=form.errors))
+    return render(request, 'home/partner_add.html', _ctx(request, 'partner', 'add', 'MIT', form=FormPartner()))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='MIT')
+def partner_view(request, _id):
+    data = Partner.objects.get(pk=_id)
+    form = FormPartnerView(instance=data)
+    return render(request, 'home/partner_view.html', _ctx(request, 'partner', 'view', 'MIT', form=form, data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='MIT')
+def partner_update(request, _id):
+    data = Partner.objects.get(pk=_id)
+    if request.POST:
+        form = FormPartner(request.POST, instance=data)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse('partner-view', args=[_id]))
+        return render(request, 'home/partner_view.html', _ctx(request, 'partner', 'update', 'MIT', form=FormPartnerView(instance=data), data=data, message=form.errors))
+    return render(request, 'home/partner_view.html', _ctx(request, 'partner', 'update', 'MIT', form=FormPartner(instance=data), data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='MIT')
+def partner_delete(request, _id):
+    Partner.objects.get(pk=_id).delete()
+    return HttpResponseRedirect(reverse('partner-index'))
+
+
+# ==================================================================
+# Master: Gudang
+# ==================================================================
+@login_required(login_url='/login/')
+@role_required(allowed_roles='GUD')
+def warehouse_index(request):
+    data = Warehouse.objects.all().order_by('code')
+    return render(request, 'home/warehouse_index.html', _ctx(request, 'warehouse', 'index', 'GUD', data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='GUD')
+def warehouse_add(request):
+    if request.POST:
+        form = FormWarehouse(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse('warehouse-view', args=[form.instance.pk]))
+        return render(request, 'home/warehouse_add.html', _ctx(request, 'warehouse', 'add', 'GUD', form=form, message=form.errors))
+    return render(request, 'home/warehouse_add.html', _ctx(request, 'warehouse', 'add', 'GUD', form=FormWarehouse()))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='GUD')
+def warehouse_view(request, _id):
+    data = Warehouse.objects.get(pk=_id)
+    form = FormWarehouseView(instance=data)
+    return render(request, 'home/warehouse_view.html', _ctx(request, 'warehouse', 'view', 'GUD', form=form, data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='GUD')
+def warehouse_update(request, _id):
+    data = Warehouse.objects.get(pk=_id)
+    if request.POST:
+        form = FormWarehouse(request.POST, instance=data)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse('warehouse-view', args=[_id]))
+        return render(request, 'home/warehouse_view.html', _ctx(request, 'warehouse', 'update', 'GUD', form=FormWarehouseView(instance=data), data=data, message=form.errors))
+    return render(request, 'home/warehouse_view.html', _ctx(request, 'warehouse', 'update', 'GUD', form=FormWarehouse(instance=data), data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='GUD')
+def warehouse_delete(request, _id):
+    data = Warehouse.objects.get(pk=_id)
+    try:
+        data.delete()
+    except ProtectedError:
+        pass
+    return HttpResponseRedirect(reverse('warehouse-index'))
+
+
+# ==================================================================
+# Master: Lokasi Penyimpanan
+# ==================================================================
+@login_required(login_url='/login/')
+@role_required(allowed_roles='LOK')
+def location_index(request):
+    data = StorageLocation.objects.select_related(
+        'warehouse').order_by('warehouse__code', 'code')
+    return render(request, 'home/location_index.html', _ctx(request, 'location', 'index', 'LOK', data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='LOK')
+def location_add(request):
+    if request.POST:
+        form = FormLocation(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse('location-view', args=[form.instance.pk]))
+        return render(request, 'home/location_add.html', _ctx(request, 'location', 'add', 'LOK', form=form, message=form.errors))
+    return render(request, 'home/location_add.html', _ctx(request, 'location', 'add', 'LOK', form=FormLocation()))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='LOK')
+def location_view(request, _id):
+    data = StorageLocation.objects.select_related('warehouse').get(pk=_id)
+    form = FormLocationView(instance=data)
+    return render(request, 'home/location_view.html', _ctx(request, 'location', 'view', 'LOK', form=form, data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='LOK')
+def location_update(request, _id):
+    data = StorageLocation.objects.select_related('warehouse').get(pk=_id)
+    if request.POST:
+        form = FormLocation(request.POST, instance=data)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse('location-view', args=[_id]))
+        return render(request, 'home/location_view.html', _ctx(request, 'location', 'update', 'LOK', form=FormLocationView(instance=data), data=data, message=form.errors))
+    return render(request, 'home/location_view.html', _ctx(request, 'location', 'update', 'LOK', form=FormLocation(instance=data), data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='LOK')
+def location_delete(request, _id):
+    data = StorageLocation.objects.get(pk=_id)
+    try:
+        data.delete()
+    except ProtectedError:
+        pass
+    return HttpResponseRedirect(reverse('location-index'))
+
+
+# ==================================================================
+# Master: Barang
+# ==================================================================
+@login_required(login_url='/login/')
+@role_required(allowed_roles='BRG')
+def item_index(request):
+    data = Item.objects.select_related('category', 'uom').order_by('sku')
+    return render(request, 'home/item_index.html', _ctx(request, 'item', 'index', 'BRG', data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='BRG')
+def item_add(request):
+    if request.POST:
+        form = FormItem(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse('item-view', args=[form.instance.pk]))
+        return render(request, 'home/item_add.html', _ctx(request, 'item', 'add', 'BRG', form=form, message=form.errors))
+    return render(request, 'home/item_add.html', _ctx(request, 'item', 'add', 'BRG', form=FormItem()))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='BRG')
+def item_view(request, _id):
+    data = Item.objects.select_related('category', 'uom').get(pk=_id)
+    form = FormItemView(instance=data)
+    return render(request, 'home/item_view.html', _ctx(request, 'item', 'view', 'BRG', form=form, data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='BRG')
+def item_update(request, _id):
+    data = Item.objects.select_related('category', 'uom').get(pk=_id)
+    if request.POST:
+        form = FormItem(request.POST, instance=data)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse('item-view', args=[_id]))
+        return render(request, 'home/item_view.html', _ctx(request, 'item', 'update', 'BRG', form=FormItemView(instance=data), data=data, message=form.errors))
+    return render(request, 'home/item_view.html', _ctx(request, 'item', 'update', 'BRG', form=FormItem(instance=data), data=data))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='BRG')
+def item_delete(request, _id):
+    data = Item.objects.get(pk=_id)
+    try:
+        data.delete()
+    except ProtectedError:
+        pass
+    return HttpResponseRedirect(reverse('item-index'))

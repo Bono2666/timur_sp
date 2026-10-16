@@ -1,0 +1,90 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %} Detail Gudang {% endblock title %}
+
+{% block content %}
+
+<div class="container-fluid mt-0">
+    <div class="row">
+        <div class="col-xl-12 order-xl-1">
+            <form action="{% url 'warehouse-update' data.pk %}" method="post">
+                {% csrf_token %}
+                <div class="card">
+                    <div class="card-header">
+                        <div class="row">
+                            <div class="col-4 d-flex align-items-center">
+                                <h4 class="mb-2">Gudang: {{ data.code }}</h4>
+                            </div>
+                            <div class="col-8 text-end">
+                                <a href="{% if crud == 'view' %}{% url 'warehouse-index' %}{% else %}{% url 'warehouse-view' data.pk %}{% endif %}" class="btn btn-sm bg-gradient-dark mb-0"><i class="fas fa-reply"></i>&nbsp;&nbsp;{% if crud == 'view' %}Kembali{% else %}Batal{% endif %}</a>
+                                <a href="{% url 'warehouse-update' data.pk %}" class="btn btn-sm bg-gradient-dark mb-0 {% if not btn.edit and not request.user.is_superuser %}disabled{% endif %}" {% if crud == 'update' %}hidden{% endif %}><i class="fas fa-edit"></i>&nbsp;&nbsp;Edit</a>
+                                <button type="submit" class="btn btn-sm bg-gradient-dark mb-0" {% if crud == 'view' %}hidden{% endif %}><i class="fas fa-save"></i>&nbsp;&nbsp;Simpan</button>
+                                <button type="button" class="btn btn-sm bg-gradient-danger mb-0 {% if not btn.delete and not request.user.is_superuser %}disabled{% else %}{% if crud == 'update' %}disabled{% endif %}{% endif %}" data-bs-toggle="modal" data-bs-target="#confirm-{{ data.pk }}"><i class="fas fa-trash"></i>&nbsp;&nbsp;Hapus</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal fade" id="confirm-{{ data.pk }}" tabindex="-1" role="dialog" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header"><h5 class="modal-title">Konfirmasi</h5></div>
+                                <div class="modal-body border-bottom-0">
+                                    Menghapus gudang akan menolak bila masih memiliki lokasi terkait.
+                                    Anda yakin akan menghapus gudang <strong>{{ data.name }}</strong>?
+                                </div>
+                                <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Batal</button>
+                                    <a href="{% url 'warehouse-delete' data.pk %}" role="button" class="btn btn-sm bg-gradient-primary text-white">Hapus</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="pl-lg-0">
+                            {% if message %}
+                            <div class="alert alert-danger text-white text-sm">{{ message }}</div>
+                            {% endif %}
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="shadow-none">
+                                        {{ form.code.label_tag }}{{ form.code }}
+                                        <div class="text-sm text-danger">{{ form.code.errors }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="shadow-none">
+                                        {{ form.name.label_tag }}{{ form.name }}
+                                        <div class="text-sm text-danger">{{ form.name.errors }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="shadow-none">
+                                        {{ form.manager.label_tag }}{{ form.manager }}
+                                        <div class="text-sm text-danger">{{ form.manager.errors }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="shadow-none">
+                                        <label class="text-muted text-xs d-block">&nbsp;</label>
+                                        {{ form.is_active }}&nbsp;{{ form.is_active.label }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="shadow-none">
+                                        {{ form.address.label_tag }}{{ form.address }}
+                                        <div class="text-sm text-danger">{{ form.address.errors }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}

@@ -219,3 +219,279 @@ class FormAuthUpdate(ModelForm):
         model = Auth
         exclude = ['user', 'entry_date',
                    'entry_by', 'update_date', 'update_by']
+
+
+# ==================================================================
+# Master Data Pergudangan — Forms (Fase 1)
+# ==================================================================
+class FormUnit(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(FormUnit, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['code'].label = 'Kode Satuan'
+        self.fields['name'].label = 'Nama Satuan'
+        self.fields['code'].widget = forms.TextInput(
+            {'class': 'form-control-sm text-uppercase', 'placeholder': 'PCS'})
+        self.fields['name'].widget = forms.TextInput(
+            {'class': 'form-control-sm'})
+
+    class Meta:
+        model = Unit
+        exclude = ['entry_date', 'entry_by', 'update_date', 'update_by']
+
+
+class FormUnitView(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(FormUnitView, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['code'].label = 'Kode Satuan'
+        self.fields['name'].label = 'Nama Satuan'
+        self.fields['code'].widget = forms.TextInput(
+            {'class': 'form-control-sm', 'readonly': 'readonly'})
+        self.fields['name'].widget = forms.TextInput(
+            {'class': 'form-control-sm', 'readonly': 'readonly'})
+
+    class Meta:
+        model = Unit
+        fields = ['code', 'name']
+
+
+class FormCategory(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(FormCategory, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['code'].label = 'Kode Kategori'
+        self.fields['name'].label = 'Nama Kategori'
+        self.fields['code'].widget = forms.TextInput(
+            {'class': 'form-control-sm text-uppercase'})
+        self.fields['name'].widget = forms.TextInput(
+            {'class': 'form-control-sm'})
+
+    class Meta:
+        model = ItemCategory
+        exclude = ['entry_date', 'entry_by', 'update_date', 'update_by']
+
+
+class FormCategoryView(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(FormCategoryView, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['code'].label = 'Kode Kategori'
+        self.fields['name'].label = 'Nama Kategori'
+        self.fields['code'].widget = forms.TextInput(
+            {'class': 'form-control-sm', 'readonly': 'readonly'})
+        self.fields['name'].widget = forms.TextInput(
+            {'class': 'form-control-sm', 'readonly': 'readonly'})
+
+    class Meta:
+        model = ItemCategory
+        fields = ['code', 'name']
+
+
+class FormPartner(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(FormPartner, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['code'].label = 'Kode Mitra'
+        self.fields['name'].label = 'Nama Mitra'
+        self.fields['partner_type'].label = 'Jenis'
+        self.fields['address'].label = 'Alamat'
+        self.fields['phone'].label = 'Telepon'
+        self.fields['email'].label = 'Email'
+        self.fields['is_active'].label = 'Aktif'
+        self.fields['code'].widget = forms.TextInput(
+            {'class': 'form-control-sm text-uppercase'})
+        self.fields['name'].widget = forms.TextInput({'class': 'form-control-sm'})
+        self.fields['partner_type'].widget = forms.Select(
+            {'class': 'form-control form-select-sm'})
+        self.fields['address'].widget = forms.TextInput({'class': 'form-control-sm'})
+        self.fields['phone'].widget = forms.TextInput({'class': 'form-control-sm'})
+        self.fields['email'].widget = forms.EmailInput({'class': 'form-control-sm'})
+        self.fields['is_active'].widget = forms.CheckboxInput({'class': 'border mt-1'})
+
+    class Meta:
+        model = Partner
+        exclude = ['entry_date', 'entry_by', 'update_date', 'update_by']
+
+
+class FormPartnerView(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(FormPartnerView, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['code'].label = 'Kode Mitra'
+        self.fields['name'].label = 'Nama Mitra'
+        self.fields['partner_type'].label = 'Jenis'
+        self.fields['address'].label = 'Alamat'
+        self.fields['phone'].label = 'Telepon'
+        self.fields['email'].label = 'Email'
+        self.fields['is_active'].label = 'Aktif'
+        for f in ['code', 'name', 'address', 'phone', 'email']:
+            self.fields[f].widget = forms.TextInput(
+                {'class': 'form-control-sm', 'readonly': 'readonly'})
+        self.fields['partner_type'].widget = forms.Select(
+            {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
+        self.fields['is_active'].widget = forms.CheckboxInput(
+            {'class': 'border mt-1', 'disabled': 'disabled'})
+
+    class Meta:
+        model = Partner
+        fields = ['code', 'name', 'partner_type', 'address',
+                  'phone', 'email', 'is_active']
+
+
+class FormWarehouse(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(FormWarehouse, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['code'].label = 'Kode Gudang'
+        self.fields['name'].label = 'Nama Gudang'
+        self.fields['address'].label = 'Alamat'
+        self.fields['manager'].label = 'Penanggung Jawab'
+        self.fields['is_active'].label = 'Aktif'
+        self.fields['code'].widget = forms.TextInput(
+            {'class': 'form-control-sm text-uppercase'})
+        self.fields['name'].widget = forms.TextInput({'class': 'form-control-sm'})
+        self.fields['address'].widget = forms.TextInput({'class': 'form-control-sm'})
+        self.fields['manager'].widget = forms.TextInput({'class': 'form-control-sm'})
+        self.fields['is_active'].widget = forms.CheckboxInput({'class': 'border mt-1'})
+
+    class Meta:
+        model = Warehouse
+        exclude = ['entry_date', 'entry_by', 'update_date', 'update_by']
+
+
+class FormWarehouseView(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(FormWarehouseView, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['code'].label = 'Kode Gudang'
+        self.fields['name'].label = 'Nama Gudang'
+        self.fields['address'].label = 'Alamat'
+        self.fields['manager'].label = 'Penanggung Jawab'
+        self.fields['is_active'].label = 'Aktif'
+        for f in ['code', 'name', 'address', 'manager']:
+            self.fields[f].widget = forms.TextInput(
+                {'class': 'form-control-sm', 'readonly': 'readonly'})
+        self.fields['is_active'].widget = forms.CheckboxInput(
+            {'class': 'border mt-1', 'disabled': 'disabled'})
+
+    class Meta:
+        model = Warehouse
+        fields = ['code', 'name', 'address', 'manager', 'is_active']
+
+
+class FormLocation(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(FormLocation, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['warehouse'].label = 'Gudang'
+        self.fields['parent'].label = 'Induk (Parent)'
+        self.fields['code'].label = 'Kode Lokasi'
+        self.fields['name'].label = 'Nama Lokasi'
+        self.fields['barcode'].label = 'Barcode'
+        self.fields['location_type'].label = 'Tipe Lokasi'
+        self.fields['is_active'].label = 'Aktif'
+        self.fields['warehouse'].widget = forms.Select(
+            {'class': 'form-control form-select-sm'})
+        self.fields['parent'].widget = forms.Select(
+            {'class': 'form-control form-select-sm'})
+        self.fields['code'].widget = forms.TextInput(
+            {'class': 'form-control-sm text-uppercase'})
+        self.fields['name'].widget = forms.TextInput({'class': 'form-control-sm'})
+        self.fields['barcode'].widget = forms.TextInput({'class': 'form-control-sm'})
+        self.fields['location_type'].widget = forms.Select(
+            {'class': 'form-control form-select-sm'})
+        self.fields['is_active'].widget = forms.CheckboxInput({'class': 'border mt-1'})
+
+    class Meta:
+        model = StorageLocation
+        exclude = ['entry_date', 'entry_by', 'update_date', 'update_by']
+
+
+class FormLocationView(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(FormLocationView, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['warehouse'].label = 'Gudang'
+        self.fields['parent'].label = 'Induk (Parent)'
+        self.fields['code'].label = 'Kode Lokasi'
+        self.fields['name'].label = 'Nama Lokasi'
+        self.fields['barcode'].label = 'Barcode'
+        self.fields['location_type'].label = 'Tipe Lokasi'
+        self.fields['is_active'].label = 'Aktif'
+        self.fields['warehouse'].widget = forms.Select(
+            {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
+        self.fields['parent'].widget = forms.Select(
+            {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
+        for f in ['code', 'name', 'barcode']:
+            self.fields[f].widget = forms.TextInput(
+                {'class': 'form-control-sm', 'readonly': 'readonly'})
+        self.fields['location_type'].widget = forms.Select(
+            {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
+        self.fields['is_active'].widget = forms.CheckboxInput(
+            {'class': 'border mt-1', 'disabled': 'disabled'})
+
+    class Meta:
+        model = StorageLocation
+        fields = ['warehouse', 'parent', 'code', 'name',
+                  'barcode', 'location_type', 'is_active']
+
+
+class FormItem(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(FormItem, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['sku'].label = 'SKU'
+        self.fields['name'].label = 'Nama Barang'
+        self.fields['barcode'].label = 'Barcode'
+        self.fields['category'].label = 'Kategori'
+        self.fields['uom'].label = 'Satuan'
+        self.fields['minimum_stock'].label = 'Stok Minimum'
+        self.fields['is_active'].label = 'Aktif'
+        self.fields['description'].label = 'Deskripsi'
+        self.fields['sku'].widget = forms.TextInput(
+            {'class': 'form-control-sm text-uppercase'})
+        self.fields['name'].widget = forms.TextInput({'class': 'form-control-sm'})
+        self.fields['barcode'].widget = forms.TextInput({'class': 'form-control-sm'})
+        self.fields['category'].widget = forms.Select(
+            {'class': 'form-control form-select-sm'})
+        self.fields['uom'].widget = forms.Select(
+            {'class': 'form-control form-select-sm'})
+        self.fields['minimum_stock'].widget = forms.NumberInput(
+            {'class': 'form-control-sm', 'step': '0.0001', 'min': '0'})
+        self.fields['is_active'].widget = forms.CheckboxInput({'class': 'border mt-1'})
+        self.fields['description'].widget = forms.TextInput({'class': 'form-control-sm'})
+
+    class Meta:
+        model = Item
+        exclude = ['entry_date', 'entry_by', 'update_date', 'update_by']
+
+
+class FormItemView(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(FormItemView, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['sku'].label = 'SKU'
+        self.fields['name'].label = 'Nama Barang'
+        self.fields['barcode'].label = 'Barcode'
+        self.fields['category'].label = 'Kategori'
+        self.fields['uom'].label = 'Satuan'
+        self.fields['minimum_stock'].label = 'Stok Minimum'
+        self.fields['is_active'].label = 'Aktif'
+        self.fields['description'].label = 'Deskripsi'
+        for f in ['sku', 'name', 'barcode', 'description']:
+            self.fields[f].widget = forms.TextInput(
+                {'class': 'form-control-sm', 'readonly': 'readonly'})
+        self.fields['category'].widget = forms.Select(
+            {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
+        self.fields['uom'].widget = forms.Select(
+            {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
+        self.fields['minimum_stock'].widget = forms.NumberInput(
+            {'class': 'form-control-sm', 'readonly': 'readonly'})
+        self.fields['is_active'].widget = forms.CheckboxInput(
+            {'class': 'border mt-1', 'disabled': 'disabled'})
+
+    class Meta:
+        model = Item
+        fields = ['sku', 'name', 'barcode', 'category', 'uom',
+                  'minimum_stock', 'is_active', 'description']
