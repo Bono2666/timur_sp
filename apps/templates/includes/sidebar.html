@@ -76,6 +76,31 @@
         </a>
       </li>
       <li class="nav-item">
+        <div class="nav-link sidebar-group-header {% if 'transaction' in group_segment %}active{% endif %}">
+          <button class="sidebar-group-title" type="button" data-sidebar-target="#transaction-menu" aria-controls="transaction-menu" aria-expanded="{% if 'transaction' in group_segment %}true{% else %}false{% endif %}">
+          <div class="icon icon-shape icon-sm shadow border-radius-md bg-white text-center me-2 d-flex align-items-center justify-content-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v12"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <polyline points="5 21 19 21"/>
+            </svg>
+            </div>
+          <span class="nav-link-text ms-1">Transaksi Gudang</span>
+          </button>
+          <button class="sidebar-group-toggle {% if 'transaction' not in group_segment %}collapsed{% endif %}" type="button" data-sidebar-target="#transaction-menu" aria-controls="transaction-menu" aria-expanded="{% if 'transaction' in group_segment %}true{% else %}false{% endif %}"></button>
+        </div>
+
+        <div class="multi-level ms-5 collapse {% if 'transaction' in group_segment %}show{% endif %}" role="list" id="transaction-menu" aria-expanded="{% if 'transaction' in group_segment %}true{% else %}false{% endif %}">
+          <ul class="flex-column nav">
+            <li class="nav-item list-unstyled {% if 'receipt' in segment %}active{% endif %} {% if 'RCV' not in role and not request.user.is_superuser %}d-none{% endif %}">
+              <a class="nav-link button cursor-pointer" {% if crud != 'add' and crud != 'update' %}href="{% url 'receipt-index' %}"{% endif %}>
+                <span class="nav-link-text ms-1">Penerimaan Barang</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <div class="nav-link sidebar-group-header {% if 'master' in group_segment %}active{% endif %}">
           <button class="sidebar-group-title" type="button" data-sidebar-target="#user-menu" aria-controls="user-menu" aria-expanded="{% if 'master' in group_segment %}true{% else %}false{% endif %}">
           <div class="icon icon-shape icon-sm shadow border-radius-md bg-white text-center me-2 d-flex align-items-center justify-content-center">
@@ -136,31 +161,6 @@
             <li class="nav-item list-unstyled {% if 'menu' in segment %}active{% endif %} {% if 'MENU' not in role and not request.user.is_superuser %}d-none{% endif %}">
               <a class="nav-link button cursor-pointer" {% if crud != 'add' and crud != 'update' %}href="{% url 'menu-index' %}"{% endif %}>
                 <span class="nav-link-text ms-1">Menu</span>
-              </a>
-            </li>
-          </ul>
-        </div>
-      </li>
-      <li class="nav-item">
-        <div class="nav-link sidebar-group-header {% if 'transaction' in group_segment %}active{% endif %}">
-          <button class="sidebar-group-title" type="button" data-sidebar-target="#transaction-menu" aria-controls="transaction-menu" aria-expanded="{% if 'transaction' in group_segment %}true{% else %}false{% endif %}">
-          <div class="icon icon-shape icon-sm shadow border-radius-md bg-white text-center me-2 d-flex align-items-center justify-content-center">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3v12"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <polyline points="5 21 19 21"/>
-            </svg>
-            </div>
-          <span class="nav-link-text ms-1">Transaksi Gudang</span>
-          </button>
-          <button class="sidebar-group-toggle {% if 'transaction' not in group_segment %}collapsed{% endif %}" type="button" data-sidebar-target="#transaction-menu" aria-controls="transaction-menu" aria-expanded="{% if 'transaction' in group_segment %}true{% else %}false{% endif %}"></button>
-        </div>
-
-        <div class="multi-level ms-5 collapse {% if 'transaction' in group_segment %}show{% endif %}" role="list" id="transaction-menu" aria-expanded="{% if 'transaction' in group_segment %}true{% else %}false{% endif %}">
-          <ul class="flex-column nav">
-            <li class="nav-item list-unstyled {% if 'receipt' in segment %}active{% endif %} {% if 'RCV' not in role and not request.user.is_superuser %}d-none{% endif %}">
-              <a class="nav-link button cursor-pointer" {% if crud != 'add' and crud != 'update' %}href="{% url 'receipt-index' %}"{% endif %}>
-                <span class="nav-link-text ms-1">Penerimaan Barang</span>
               </a>
             </li>
           </ul>
