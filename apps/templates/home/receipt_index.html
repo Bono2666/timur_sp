@@ -23,11 +23,12 @@
                         <form method="get" class="d-flex gap-2">
                             <select name="status" class="form-control form-select-sm" onchange="this.form.submit()">
                                 <option value="">Semua Status</option>
-                                <option value="draft" {% if filter_status == 'draft' %}selected{% endif %}>Draft</option>
-                                <option value="submitted" {% if filter_status == 'submitted' %}selected{% endif %}>Submitted</option>
-                                <option value="approved" {% if filter_status == 'approved' %}selected{% endif %}>Approved</option>
-                                <option value="posted" {% if filter_status == 'posted' %}selected{% endif %}>Posted</option>
-                                <option value="cancelled" {% if filter_status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                                <option value="unvalidated" {% if filter_status == 'unvalidated' %}selected{% endif %}>Belum Divalidasi</option>
+                                <option value="await_validation" {% if filter_status == 'await_validation' %}selected{% endif %}>Menunggu Validasi</option>
+                                <option value="validated" {% if filter_status == 'validated' %}selected{% endif %}>Sudah Divalidasi</option>
+                                <option value="putaway" {% if filter_status == 'putaway' %}selected{% endif %}>Putaway Pending</option>
+                                <option value="done" {% if filter_status == 'done' %}selected{% endif %}>Selesai</option>
+                                <option value="cancelled" {% if filter_status == 'cancelled' %}selected{% endif %}>Dibatalkan</option>
                             </select>
                         </form>
                     </div>

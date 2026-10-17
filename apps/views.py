@@ -1,7 +1,7 @@
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.db import connection, IntegrityError, transaction
-from django.db.models import ProtectedError, Sum, F, Value
+from django.db.models import ProtectedError, Q, Sum, F, Value
 from django.db.models.functions import Coalesce
 from decimal import Decimal
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
@@ -1169,8 +1169,17 @@ def receipt_index(request):
     status = request.GET.get('status', '')
     data = StockDocument.objects.select_related(
         'warehouse', 'partner').prefetch_related('lines')
-    if status:
-        data = data.filter(status=status)
+    # Penyaringan mengikuti status scan (StockDocument.scan_state)
+    scan_filters = {
+        'unvalidated': Q(status__in=['draft', 'submitted']),
+        'await_validation': Q(status='approved', receive_status='pending'),
+        'validated': Q(status='approved', receive_status='done'),
+        'putaway': Q(putaway_status='pending'),
+        'done': Q(status='posted', putaway_status__in=['none', 'done']),
+        'cancelled': Q(status__in=['cancelled', 'rejected']),
+    }
+    if status in scan_filters:
+        data = data.filter(scan_filters[status])
     return render(request, 'home/receipt_index.html', _rctx(
         request, 'index', data=data, filter_status=status))
 
