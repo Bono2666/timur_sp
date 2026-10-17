@@ -1,4 +1,5 @@
 {% extends 'layouts/base.html' %}
+{% load apps_tags %}
 
 {% block title %} Detail Penerimaan {% endblock title %}
 
@@ -241,11 +242,11 @@
                     <div class="row mb-4">
                         <div class="col-md-3">
                             <p class="text-xxs text-uppercase text-secondary mb-1">Total Diterima Layak</p>
-                            <h6 class="mb-0 text-sm">{{ data.total_accepted }}</h6>
+                            <h6 class="mb-0 text-sm">{{ data.total_accepted|qty }}</h6>
                         </div>
                         <div class="col-md-3">
                             <p class="text-xxs text-uppercase text-secondary mb-1">Total Ditolak / Karantina</p>
-                            <h6 class="mb-0 text-sm {% if data.total_rejected > 0 %}text-danger{% endif %}">{{ data.total_rejected }}</h6>
+                            <h6 class="mb-0 text-sm {% if data.total_rejected > 0 %}text-danger{% endif %}">{{ data.total_rejected|qty }}</h6>
                         </div>
                     </div>
                     {% endif %}
@@ -276,17 +277,17 @@
                                     <td><h6 class="mb-0 text-sm">{{ line.item.sku }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ line.item.name }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ line.destination_location.warehouse.code }} · {{ line.destination_location.code }}</h6></td>
-                                    <td><h6 class="mb-0 text-sm">{{ line.quantity }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ line.quantity|qty }}</h6></td>
                                     {% if data.receive_status == 'done' %}
-                                    <td><h6 class="mb-0 text-sm">{{ line.received_qty|default_if_none:'-' }}</h6></td>
-                                    <td><h6 class="mb-0 text-sm">{{ line.accepted_qty|default_if_none:'-' }}</h6></td>
-                                    <td><h6 class="mb-0 text-sm {% if line.rejected_qty > 0 %}text-danger{% endif %}">{{ line.rejected_qty|default_if_none:'-' }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ line.received_qty|qty|default:'-' }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ line.accepted_qty|qty|default:'-' }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm {% if line.rejected_qty > 0 %}text-danger{% endif %}">{{ line.rejected_qty|qty|default:'-' }}</h6></td>
                                     <td>
                                         <h6 class="mb-0 text-sm">
                                         {% if line.quarantine_location %}→ {{ line.quarantine_location.code }}{% endif %}
                                         {% if data.operation_type == 'staged' %}
                                           {% if line.putaway_remaining > 0 %}
-                                            <span class="badge bg-gradient-warning">Putaway {{ line.putaway_remaining }}</span>
+                                            <span class="badge bg-gradient-warning">Putaway {{ line.putaway_remaining|qty }}</span>
                                           {% elif line.putaway_status == 'done' %}
                                             <span class="badge bg-gradient-success">Putaway ✓</span>
                                           {% endif %}
@@ -302,11 +303,11 @@
                             <tfoot>
                                 <tr>
                                     <td colspan="3" class="text-end text-uppercase text-xxs text-secondary font-weight-bolder">Total</td>
-                                    <td class="font-weight-bolder">{{ data.total_quantity }}</td>
+                                    <td class="font-weight-bolder">{{ data.total_quantity|qty }}</td>
                                     {% if data.receive_status == 'done' %}
-                                    <td class="font-weight-bolder">{{ data.total_received }}</td>
-                                    <td class="font-weight-bolder">{{ data.total_accepted }}</td>
-                                    <td class="font-weight-bolder">{{ data.total_rejected }}</td>
+                                    <td class="font-weight-bolder">{{ data.total_received|qty }}</td>
+                                    <td class="font-weight-bolder">{{ data.total_accepted|qty }}</td>
+                                    <td class="font-weight-bolder">{{ data.total_rejected|qty }}</td>
                                     <td></td>
                                     {% else %}
                                     <td></td>

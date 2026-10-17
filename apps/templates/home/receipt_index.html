@@ -1,4 +1,5 @@
 {% extends 'layouts/base.html' %}
+{% load apps_tags %}
 
 {% block title %} Penerimaan Barang {% endblock title %}
 
@@ -52,7 +53,7 @@
                                     <td><h6 class="mb-0 text-sm">{{ d.document_date|date:'d/m/Y' }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ d.warehouse.code }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ d.partner.name|default:'-' }}</h6></td>
-                                    <td><h6 class="mb-0 text-sm">{{ d.total_quantity }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ d.total_quantity|qty }}</h6></td>
                                     <td>
                                         {% if d.status == 'draft' %}<span class="badge bg-gradient-secondary">Draft</span>
                                         {% elif d.status == 'submitted' %}<span class="badge bg-gradient-info">Submitted</span>

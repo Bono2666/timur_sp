@@ -1,4 +1,5 @@
 {% extends 'layouts/base.html' %}
+{% load apps_tags %}
 
 {% block title %} Data Barang {% endblock title %}
 
@@ -36,7 +37,7 @@
                                     <td><h6 class="mb-0 text-sm">{{ item.name }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ item.category.name }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ item.uom.code }}</h6></td>
-                                    <td><h6 class="mb-0 text-sm">{{ item.minimum_stock }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ item.minimum_stock|qty }}</h6></td>
                                     <td>
                                         {% if item.is_active %}<span class="badge bg-gradient-success">Aktif</span>{% else %}<span class="badge bg-gradient-secondary">Nonaktif</span>{% endif %}
                                     </td>

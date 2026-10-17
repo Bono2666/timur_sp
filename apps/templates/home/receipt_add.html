@@ -1,4 +1,5 @@
 {% extends 'layouts/base.html' %}
+{% load apps_tags %}
 
 {% block title %}{% if edit_doc %}Ubah{% else %}Buat{% endif %} Penerimaan Barang {% endblock title %}
 
@@ -111,7 +112,7 @@
                                                 {% endfor %}
                                             </select>
                                         </td>
-                                        <td><input type="number" name="line_qty" class="form-control form-control-sm line-qty" step="0.0001" min="0.0001" value="{{ line.quantity }}" required></td>
+                                        <td><input type="number" name="line_qty" class="form-control form-control-sm line-qty" step="0.0001" min="0.0001" value="{{ line.quantity|qty }}" required></td>
                                         <td><input type="text" name="line_note" class="form-control form-control-sm" value="{{ line.notes|default:'' }}"></td>
                                         <td class="text-center"><button type="button" class="btn btn-sm bg-gradient-danger line-del">&times;</button></td>
                                     </tr>
