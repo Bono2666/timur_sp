@@ -163,22 +163,24 @@
                 </div>
               </div>
               <div class="col-4 text-end">
-                <div class="icon icon-shape {% if kpi.rcv_pending > 0 %}bg-gradient-warning{% else %}bg-gradient-primary{% endif %} shadow text-center border-radius-md">
+                <div class="icon icon-shape {% if kpi.rcv_await_validation > 0 or kpi.rcv_putaway_pending > 0 %}bg-gradient-warning{% else %}bg-gradient-primary{% endif %} shadow text-center border-radius-md">
                   <i class="fas fa-inbox text-lg opacity-10" aria-hidden="true"></i>
                 </div>
               </div>
             </div>
-            {% if kpi.rcv_pending > 0 %}
+            {% if kpi.rcv_await_validation > 0 %}
             <p class="text-sm mb-0 mt-3 text-warning font-weight-bold mb-0">
-              {{ kpi.rcv_pending }} menunggu persetujuan
+              {{ kpi.rcv_await_validation }} menunggu validasi
             </p>
-            {% elif kpi.rcv_putaway_pending > 0 %}
-            <p class="text-sm mb-0 mt-3 text-warning font-weight-bold mb-0">
-              {{ kpi.rcv_putaway_pending }} menunggu putaway
+            {% endif %}
+            {% if kpi.rcv_putaway_pending > 0 %}
+            <p class="text-sm mb-0 {% if kpi.rcv_await_validation > 0 %}mt-2{% else %}mt-3{% endif %} text-warning font-weight-bold mb-0">
+              {{ kpi.rcv_putaway_pending }} putaway pending
             </p>
-            {% elif kpi.rcv_draft > 0 %}
-            <p class="text-sm mb-0 mt-3 text-secondary mb-0">
-              {{ kpi.rcv_draft }} masih draft
+            {% endif %}
+            {% if kpi.rcv_unvalidated > 0 %}
+            <p class="text-sm mb-0 {% if kpi.rcv_await_validation > 0 or kpi.rcv_putaway_pending > 0 %}mt-2{% else %}mt-3{% endif %} text-secondary mb-0">
+              {{ kpi.rcv_unvalidated }} belum divalidasi
             </p>
             {% endif %}
           </div>

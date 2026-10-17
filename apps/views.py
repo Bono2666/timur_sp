@@ -48,10 +48,11 @@ def home(request):
     # KPI Penerimaan Barang (Fase 2)
     bulan_ini = timezone.now().replace(day=1, hour=0, minute=0,
                                        second=0, microsecond=0)
-    rcv_draft = StockDocument.objects.filter(
-        document_type='RCV', status='draft').count()
-    rcv_pending = StockDocument.objects.filter(
-        document_type='RCV', status='submitted').count()
+    rcv_unvalidated = StockDocument.objects.filter(
+        document_type='RCV', status__in=['draft', 'submitted']).count()
+    rcv_await_validation = StockDocument.objects.filter(
+        document_type='RCV', status='approved',
+        receive_status='pending').count()
     rcv_posted_month = StockDocument.objects.filter(
         document_type='RCV', status='posted',
         posted_at__gte=bulan_ini).count()
@@ -70,8 +71,8 @@ def home(request):
             'mitra': total_mitra,
             'stok': total_stok,
             'below_min': di_bawah_minimum,
-            'rcv_draft': rcv_draft,
-            'rcv_pending': rcv_pending,
+            'rcv_unvalidated': rcv_unvalidated,
+            'rcv_await_validation': rcv_await_validation,
             'rcv_posted_month': rcv_posted_month,
             'rcv_putaway_pending': rcv_putaway_pending,
         },

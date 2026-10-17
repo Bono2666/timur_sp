@@ -506,6 +506,28 @@ class StockDocument(models.Model):
                     for l in self.lines.all()), Decimal('0'))
 
     @property
+    def scan_state(self):
+        """Status operasional petugas scan (Daftar Penerimaan & Dashboard).
+
+        unvalidated      = draft/submitted — belum divalidasi
+        await_validation = approved — menunggu validasi (scan validasi)
+        validated        = sudah divalidasi, menunggu posting
+        putaway          = menunggu putaway (scan putaway)
+        done             = selesai
+        cancelled        = dibatalkan
+        """
+        if self.status in ('cancelled', 'rejected'):
+            return 'cancelled'
+        if self.putaway_status == 'pending':
+            return 'putaway'
+        if self.status == 'approved':
+            return ('validated' if self.receive_status == 'done'
+                    else 'await_validation')
+        if self.status == 'posted':
+            return 'done'
+        return 'unvalidated'
+
+    @property
     def putaway_pending_lines(self):
         """Baris staged yang masih punya sisa putaway."""
         return [l for l in self.lines.all() if l.putaway_remaining > 0]

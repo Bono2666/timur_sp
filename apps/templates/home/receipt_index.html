@@ -55,11 +55,12 @@
                                     <td><h6 class="mb-0 text-sm">{{ d.partner.name|default:'-' }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ d.total_quantity|qty }}</h6></td>
                                     <td>
-                                        {% if d.status == 'draft' %}<span class="badge bg-gradient-secondary">Draft</span>
-                                        {% elif d.status == 'submitted' %}<span class="badge bg-gradient-info">Submitted</span>
-                                        {% elif d.status == 'approved' %}<span class="badge bg-gradient-warning">Approved</span>
-                                        {% elif d.status == 'posted' %}<span class="badge bg-gradient-success">Posted</span>
-                                        {% else %}<span class="badge bg-gradient-danger">Cancelled</span>{% endif %}
+                                        {% if d.scan_state == 'unvalidated' %}<span class="badge bg-gradient-secondary">Belum Divalidasi</span>
+                                        {% elif d.scan_state == 'await_validation' %}<span class="badge bg-gradient-primary">Menunggu Validasi</span>
+                                        {% elif d.scan_state == 'validated' %}<span class="badge bg-gradient-info">Sudah Divalidasi</span>
+                                        {% elif d.scan_state == 'putaway' %}<span class="badge bg-gradient-warning">Putaway Pending</span>
+                                        {% elif d.scan_state == 'done' %}<span class="badge bg-gradient-success">Selesai</span>
+                                        {% else %}<span class="badge bg-gradient-danger">Dibatalkan</span>{% endif %}
                                     </td>
                                 </tr>
                                 {% empty %}
