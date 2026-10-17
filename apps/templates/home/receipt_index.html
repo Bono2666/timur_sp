@@ -56,12 +56,7 @@
                                     <td><h6 class="mb-0 text-sm">{{ d.partner.name|default:'-' }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ d.total_quantity|qty }}</h6></td>
                                     <td>
-                                        {% if d.scan_state == 'pending_approval' %}<span class="badge bg-gradient-secondary">Menunggu Persetujuan</span>
-                                        {% elif d.scan_state == 'await_validation' %}<span class="badge bg-gradient-primary">Menunggu Validasi</span>
-                                        {% elif d.scan_state == 'validated' %}<span class="badge bg-gradient-info">Sudah Divalidasi</span>
-                                        {% elif d.scan_state == 'putaway' %}<span class="badge bg-gradient-warning">Putaway Pending</span>
-                                        {% elif d.scan_state == 'done' %}<span class="badge bg-gradient-success">Selesai</span>
-                                        {% else %}<span class="badge bg-gradient-danger">Dibatalkan</span>{% endif %}
+                                        <span class="badge {{ d.scan_state_css }}">{{ d.scan_state_label }}</span>
                                     </td>
                                 </tr>
                                 {% empty %}

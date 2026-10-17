@@ -527,6 +527,24 @@ class StockDocument(models.Model):
             return 'done'
         return 'pending_approval'
 
+    # Nama & warna badge status — SATU sumber untuk semua halaman
+    SCAN_STATE_LABELS = {
+        'pending_approval': ('Menunggu Persetujuan', 'bg-gradient-secondary'),
+        'await_validation': ('Menunggu Validasi', 'bg-gradient-primary'),
+        'validated': ('Sudah Divalidasi', 'bg-gradient-info'),
+        'putaway': ('Putaway Pending', 'bg-gradient-warning'),
+        'done': ('Selesai', 'bg-gradient-success'),
+        'cancelled': ('Dibatalkan', 'bg-gradient-danger'),
+    }
+
+    @property
+    def scan_state_label(self):
+        return self.SCAN_STATE_LABELS[self.scan_state][0]
+
+    @property
+    def scan_state_css(self):
+        return self.SCAN_STATE_LABELS[self.scan_state][1]
+
     @property
     def putaway_pending_lines(self):
         """Baris staged yang masih punya sisa putaway."""
