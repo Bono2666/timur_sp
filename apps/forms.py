@@ -1,7 +1,28 @@
 from django import forms
 from django.forms import ModelForm
+from decimal import Decimal
 from apps.models import *
 from django.contrib.auth.forms import PasswordChangeForm, SetPasswordForm, UserCreationForm
+
+
+class TrimDecimalInput(forms.NumberInput):
+    """Input angka yang menampilkan nilai tanpa nol desimal di belakang.
+
+    5.0000 -> '5', 7.5000 -> '7.5' (hanya tampilan; input tetap menerima desimal).
+    """
+
+    def format_value(self, value):
+        if value in (None, ''):
+            return ''
+        try:
+            d = Decimal(str(value))
+        except Exception:
+            return super(TrimDecimalInput, self).format_value(value)
+        if d == d.to_integral_value():
+            d = d.quantize(Decimal('1'))
+        else:
+            d = d.normalize()
+        return format(d, 'f')
 
 
 class FormUser(UserCreationForm):
@@ -457,7 +478,7 @@ class FormItem(ModelForm):
             {'class': 'form-control form-select-sm'})
         self.fields['uom'].widget = forms.Select(
             {'class': 'form-control form-select-sm'})
-        self.fields['minimum_stock'].widget = forms.NumberInput(
+        self.fields['minimum_stock'].widget = TrimDecimalInput(
             {'class': 'form-control-sm', 'step': '0.0001', 'min': '0'})
         self.fields['is_active'].widget = forms.CheckboxInput({'class': 'border mt-1'})
         self.fields['description'].widget = forms.TextInput({'class': 'form-control-sm'})
@@ -486,7 +507,7 @@ class FormItemView(ModelForm):
             {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
         self.fields['uom'].widget = forms.Select(
             {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
-        self.fields['minimum_stock'].widget = forms.NumberInput(
+        self.fields['minimum_stock'].widget = TrimDecimalInput(
             {'class': 'form-control-sm', 'readonly': 'readonly'})
         self.fields['is_active'].widget = forms.CheckboxInput(
             {'class': 'border mt-1', 'disabled': 'disabled'})
