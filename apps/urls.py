@@ -88,6 +88,7 @@ urlpatterns = [
     # Master: Barang
     path('master/item/', views.item_index, name='item-index'),
     path('master/item/add/', views.item_add, name='item-add'),
+    path('master/item/label-print/', views.item_label_print, name='item-label-print'),
     path('master/item/view/<int:_id>/', views.item_view, name='item-view'),
     path('master/item/update/<int:_id>/',
          views.item_update, name='item-update'),

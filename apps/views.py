@@ -818,6 +818,19 @@ def item_index(request):
 
 @login_required(login_url='/login/')
 @role_required(allowed_roles='BRG')
+def item_label_print(request):
+    """Cetak label sticker barang terpilih: barcode, nama barang, SKU."""
+    id_list = [int(x) for x in request.GET.get('ids', '').split(',')
+               if x.strip().isdigit()]
+    data = (Item.objects.filter(pk__in=id_list).select_related(
+        'category', 'uom').order_by('sku') if id_list else [])
+    if not data:
+        return HttpResponseRedirect(reverse('item-index'))
+    return render(request, 'home/item_label_print.html', {'data': data})
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='BRG')
 def item_add(request):
     if request.POST:
         form = FormItem(request.POST)
