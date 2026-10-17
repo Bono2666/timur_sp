@@ -14,8 +14,8 @@
                         <h4 class="mb-0">Daftar Barang</h4>
                     </div>
                     <div class="col-6 text-end">
-                        <button type="button" class="btn btn-sm bg-gradient-dark mb-0 me-2" id="btn-print-label"><i class="fas fa-print"></i>&nbsp;&nbsp;Cetak Label <span class="badge bg-white text-dark ms-1" id="print-count">0</span></button>
-                        <a class="btn btn-sm bg-gradient-primary mb-0 {% if not btn.add and not request.user.is_superuser %}disabled{% endif %}" href="{% url 'item-add' %}"><i class="fas fa-plus"></i>&nbsp;&nbsp;Tambah Barang</a>
+                        <a class="btn btn-sm bg-gradient-primary mb-0 me-2 {% if not btn.add and not request.user.is_superuser %}disabled{% endif %}" href="{% url 'item-add' %}"><i class="fas fa-plus"></i>&nbsp;&nbsp;Tambah Barang</a>
+                        <button type="button" class="btn btn-sm bg-gradient-dark mb-0" id="btn-print-label"><i class="fas fa-print"></i>&nbsp;&nbsp;Cetak Label <span class="badge bg-white text-dark ms-1" id="print-count">0</span></button>
                     </div>
                 </div>
                 <div class="card-body px-0 pt-0 pb-2">
