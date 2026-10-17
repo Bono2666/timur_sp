@@ -13,7 +13,8 @@
                         <h4 class="mb-0">Daftar Lokasi Penyimpanan</h4>
                     </div>
                     <div class="col-6 text-end">
-                        <a class="btn btn-sm bg-gradient-primary mb-0 {% if not btn.add and not request.user.is_superuser %}disabled{% endif %}" href="{% url 'location-add' %}"><i class="fas fa-plus"></i>&nbsp;&nbsp;Tambah Lokasi</a>
+                        <a class="btn btn-sm bg-gradient-primary mb-0 me-2 {% if not btn.add and not request.user.is_superuser %}disabled{% endif %}" href="{% url 'location-add' %}"><i class="fas fa-plus"></i>&nbsp;&nbsp;Tambah Lokasi</a>
+                        <button type="button" class="btn btn-sm bg-gradient-dark mb-0" id="btn-print-label"><i class="fas fa-print"></i>&nbsp;&nbsp;Cetak Label <span class="badge bg-white text-dark ms-1" id="print-count">0</span></button>
                     </div>
                 </div>
                 <div class="card-body px-0 pt-0 pb-2">
@@ -21,6 +22,9 @@
                         <table class="table hover align-items-center mb-0" id="myTable">
                             <thead>
                                 <tr>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7" style="width: 28px;">
+                                        <input type="checkbox" id="check-all" class="form-check-input" title="Pilih semua">
+                                    </th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Gudang</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Kode</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Nama Lokasi</th>
@@ -32,6 +36,9 @@
                             <tbody>
                                 {% for item in data %}
                                 <tr data-href="{% url 'location-view' item.pk %}" class="cursor-pointer">
+                                    <td onclick="event.stopPropagation()">
+                                        <input type="checkbox" class="form-check-input item-check" value="{{ item.pk }}">
+                                    </td>
                                     <td><h6 class="mb-0 text-sm">{{ item.warehouse.code }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ item.code }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ item.name }}</h6></td>
@@ -70,6 +77,25 @@
 
         $(document).on('click', 'tbody tr', function() {
             if ($(this).data('href')) { window.location = $(this).data('href'); }
+        });
+
+        // Pilih semua & cetak label penyimpanan
+        function updatePrintCount() {
+            $('#print-count').text($('.item-check:checked').length);
+        }
+        $('#check-all').on('change', function () {
+            $('.item-check').prop('checked', $(this).is(':checked'));
+            updatePrintCount();
+        });
+        $(document).on('change', '.item-check', updatePrintCount);
+        $('#btn-print-label').on('click', function () {
+            var ids = [];
+            $('.item-check:checked').each(function () { ids.push($(this).val()); });
+            if (!ids.length) {
+                alert('Pilih dulu minimal 1 lokasi yang akan dicetak labelnya.');
+                return;
+            }
+            window.open("{% url 'location-label-print' %}?ids=" + ids.join(','), '_blank');
         });
     } );
 </script>

@@ -79,6 +79,7 @@ urlpatterns = [
     # Master: Lokasi Penyimpanan
     path('master/location/', views.location_index, name='location-index'),
     path('master/location/add/', views.location_add, name='location-add'),
+    path('master/location/label-print/', views.location_label_print, name='location-label-print'),
     path('master/location/view/<int:_id>/',
          views.location_view, name='location-view'),
     path('master/location/update/<int:_id>/',

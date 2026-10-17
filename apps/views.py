@@ -762,6 +762,80 @@ def location_index(request):
     return render(request, 'home/location_index.html', _ctx(request, 'location', 'index', 'LOK', data=data))
 
 
+def _render_location_labels_pdf(items):
+    """Render label lokasi: 1 lokasi = 1 halaman PDF 90x42mm.
+
+    Format: Nama Lokasi di atas (rata tengah), barcode + angkanya di bawah.
+    Nilai barcode: field barcode, fallback kode lokasi.
+    """
+    from io import BytesIO
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import simpleSplit
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    from reportlab.pdfgen import canvas as pdf_canvas
+    from reportlab.graphics.barcode.code128 import Code128
+
+    page_w, page_h = 90 * mm, 42 * mm
+    pad = 4 * mm
+    buf = BytesIO()
+    canvas = pdf_canvas.Canvas(buf, pagesize=(page_w, page_h))
+    canvas.setTitle('Label Lokasi - TSP Warehouse')
+
+    for loc in items:
+        # Nama lokasi di atas, rata tengah, maksimal 2 baris
+        canvas.setFillColorRGB(0.05, 0.05, 0.05)
+        canvas.setFont('Helvetica-Bold', 14)
+        lines = simpleSplit(loc.name or loc.code, 'Helvetica-Bold', 14,
+                            page_w - 2 * pad)
+        if len(lines) > 2:
+            lines = lines[:2]
+            while lines[1] and stringWidth(
+                    lines[1] + '...', 'Helvetica-Bold', 14) > page_w - 2 * pad:
+                lines[1] = lines[1][:-1]
+            lines[1] += '...'
+        for i, ln in enumerate(lines):
+            canvas.drawCentredString(page_w / 2, page_h - 9 * mm - i * 5.4 * mm, ln)
+
+        # Barcode di bawah, rata tengah + nilai barcode di bawahnya
+        code = (loc.barcode or loc.code or '').strip()
+        bc = None
+        if code and code.isascii():
+            try:
+                bc = Code128(code, barHeight=11 * mm, barWidth=0.27 * mm,
+                             humanReadable=False)
+            except Exception:
+                bc = None
+        if bc is not None:
+            bc.drawOn(canvas, (page_w - bc.width) / 2, 10 * mm)
+            canvas.setFont('Helvetica', 9)
+            canvas.setFillColorRGB(0.05, 0.05, 0.05)
+            canvas.drawCentredString(page_w / 2, 6.4 * mm, code)
+        else:
+            canvas.setFont('Helvetica-Oblique', 7.5)
+            canvas.setFillColorRGB(0.68, 0.68, 0.68)
+            canvas.drawCentredString(page_w / 2, 13 * mm, 'TANPA BARCODE')
+
+        canvas.showPage()
+
+    canvas.save()
+    return buf.getvalue()
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='LOK')
+def location_label_print(request):
+    """Cetak label penyimpanan terpilih: PDF, 1 lokasi = 1 halaman 90x42mm."""
+    id_list = [int(x) for x in request.GET.get('ids', '').split(',')
+               if x.strip().isdigit()]
+    items = (StorageLocation.objects.filter(pk__in=id_list).select_related(
+        'warehouse').order_by('warehouse__code', 'code') if id_list else [])
+    if not items:
+        return HttpResponseRedirect(reverse('location-index'))
+    pdf = _render_location_labels_pdf(items)
+    return HttpResponse(pdf, content_type='application/pdf', headers={
+        'Content-Disposition': 'inline; filename="label-lokasi.pdf"'})
+
+
 @login_required(login_url='/login/')
 @role_required(allowed_roles='LOK')
 def location_add(request):
