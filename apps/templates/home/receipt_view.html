@@ -13,19 +13,19 @@
                     <div class="row">
                         <div class="col-5 d-flex align-items-center flex-wrap">
                             <h4 class="mb-2 me-3">{{ data.number }}</h4>
-                            {% if data.status == 'draft' %}<span class="badge bg-gradient-secondary">Draft</span>
-                            {% elif data.status == 'submitted' %}<span class="badge bg-gradient-info">Submitted</span>
-                            {% elif data.status == 'approved' %}<span class="badge bg-gradient-warning">Approved</span>
-                            {% elif data.status == 'posted' %}<span class="badge bg-gradient-success">Posted</span>
-                            {% else %}<span class="badge bg-gradient-danger">Cancelled</span>{% endif %}
-                            <span class="badge bg-gradient-dark me-1">{% if data.operation_type == 'staged' %}2 Tahap{% else %}1 Tahap{% endif %}</span>
+                            {% if data.status == 'draft' %}<span class="badge bg-gradient-secondary me-2">Draft</span>
+                            {% elif data.status == 'submitted' %}<span class="badge bg-gradient-info me-2">Submitted</span>
+                            {% elif data.status == 'approved' %}<span class="badge bg-gradient-warning me-2">Approved</span>
+                            {% elif data.status == 'posted' %}<span class="badge bg-gradient-success me-2">Posted</span>
+                            {% else %}<span class="badge bg-gradient-danger me-2">Cancelled</span>{% endif %}
+                            <span class="badge bg-gradient-dark me-2">{% if data.operation_type == 'staged' %}2 Tahap{% else %}1 Tahap{% endif %}</span>
                             {% if data.status == 'approved' or data.status == 'posted' %}
-                              {% if data.receive_status == 'done' %}<span class="badge bg-gradient-success me-1">Validasi ✓</span>
-                              {% else %}<span class="badge bg-gradient-warning me-1">Belum divalidasi</span>{% endif %}
+                              {% if data.receive_status == 'done' %}<span class="badge bg-gradient-success me-2">Validasi ✓</span>
+                              {% else %}<span class="badge bg-gradient-warning me-2">Belum divalidasi</span>{% endif %}
                             {% endif %}
                             {% if data.status == 'posted' and data.operation_type == 'staged' %}
-                              {% if data.putaway_status == 'done' %}<span class="badge bg-gradient-success me-1">Putaway ✓</span>
-                              {% elif data.putaway_status == 'pending' %}<span class="badge bg-gradient-warning me-1">Putaway pending</span>{% endif %}
+                              {% if data.putaway_status == 'done' %}<span class="badge bg-gradient-success me-2">Putaway ✓</span>
+                              {% elif data.putaway_status == 'pending' %}<span class="badge bg-gradient-warning me-2">Putaway pending</span>{% endif %}
                             {% endif %}
                         </div>
                         <div class="col-7 text-end">
