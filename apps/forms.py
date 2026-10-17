@@ -479,7 +479,7 @@ class FormItem(ModelForm):
         self.fields['uom'].widget = forms.Select(
             {'class': 'form-control form-select-sm'})
         self.fields['minimum_stock'].widget = TrimDecimalInput(
-            {'class': 'form-control-sm', 'step': '0.0001', 'min': '0'})
+            {'class': 'form-control-sm', 'step': '1', 'min': '0'})
         self.fields['is_active'].widget = forms.CheckboxInput({'class': 'border mt-1'})
         self.fields['description'].widget = forms.TextInput({'class': 'form-control-sm'})
 

@@ -925,6 +925,9 @@ def _parse_lines(request, warehouse):
         if qty <= 0:
             errors.append('Baris %d: kuantitas harus lebih besar dari 0.' % (i + 1))
             continue
+        if qty != qty.to_integral_value():
+            errors.append('Baris %d: kuantitas harus bilangan bulat.' % (i + 1))
+            continue
         lines.append({'item': item, 'loc': loc, 'qty': qty, 'note': note_raw})
 
     if not lines and not errors:
@@ -1206,6 +1209,9 @@ def receipt_validate(request, _id):
             if min(received, accepted, rejected) < 0:
                 errors.append('Baris %d: kuantitas tidak boleh negatif.' % (i + 1))
                 continue
+            if any(v != v.to_integral_value() for v in (received, accepted, rejected)):
+                errors.append('Baris %d: kuantitas harus bilangan bulat.' % (i + 1))
+                continue
             if accepted + rejected != received:
                 errors.append(
                     'Baris %d: (diterima layak + ditolak) harus sama dengan '
@@ -1283,6 +1289,9 @@ def receipt_putaway(request, _id):
                 continue
             if qty < 0:
                 errors.append('Baris %d: kuantitas tidak boleh negatif.' % (i + 1))
+                continue
+            if qty != qty.to_integral_value():
+                errors.append('Baris %d: kuantitas harus bilangan bulat.' % (i + 1))
                 continue
             if qty > line.putaway_remaining:
                 errors.append(

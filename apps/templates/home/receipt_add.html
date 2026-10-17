@@ -112,7 +112,7 @@
                                                 {% endfor %}
                                             </select>
                                         </td>
-                                        <td><input type="number" name="line_qty" class="form-control form-control-sm line-qty" step="0.0001" min="0.0001" value="{{ line.quantity|qty }}" required></td>
+                                        <td><input type="number" name="line_qty" class="form-control form-control-sm line-qty" step="1" min="1" value="{{ line.quantity|qty }}" required></td>
                                         <td><input type="text" name="line_note" class="form-control form-control-sm" value="{{ line.notes|default:'' }}"></td>
                                         <td class="text-center"><button type="button" class="btn btn-sm bg-gradient-danger line-del">&times;</button></td>
                                     </tr>
@@ -146,7 +146,7 @@
                 {% endfor %}
             </select>
         </td>
-        <td><input type="number" name="line_qty" class="form-control form-control-sm line-qty" step="0.0001" min="0.0001" required></td>
+        <td><input type="number" name="line_qty" class="form-control form-control-sm line-qty" step="1" min="1" required></td>
         <td><input type="text" name="line_note" class="form-control form-control-sm"></td>
         <td class="text-center"><button type="button" class="btn btn-sm bg-gradient-danger line-del">&times;</button></td>
     </tr>

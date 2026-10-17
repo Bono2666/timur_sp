@@ -73,9 +73,9 @@
                                             <p class="text-xs text-secondary mb-0">{{ line.item.name }}</p>
                                         </td>
                                         <td><h6 class="mb-0 text-sm">{{ line.quantity|qty }}</h6></td>
-                                        <td><input type="number" step="0.0001" min="0" name="v_received" class="form-control form-control-sm v-received" value="{{ line.received_qty|default_if_none:''|qty }}" required></td>
-                                        <td><input type="number" step="0.0001" min="0" name="v_accepted" class="form-control form-control-sm v-accepted" value="{{ line.accepted_qty|default_if_none:''|qty }}"></td>
-                                        <td><input type="number" step="0.0001" min="0" name="v_rejected" class="form-control form-control-sm v-rejected" value="{{ line.rejected_qty|default_if_none:''|qty }}"></td>
+                                        <td><input type="number" step="1" min="0" name="v_received" class="form-control form-control-sm v-received" value="{{ line.received_qty|default_if_none:''|qty }}" required></td>
+                                        <td><input type="number" step="1" min="0" name="v_accepted" class="form-control form-control-sm v-accepted" value="{{ line.accepted_qty|default_if_none:''|qty }}"></td>
+                                        <td><input type="number" step="1" min="0" name="v_rejected" class="form-control form-control-sm v-rejected" value="{{ line.rejected_qty|default_if_none:''|qty }}"></td>
                                         <td>
                                             <select name="v_quarantine" class="form-control form-select-sm v-quarantine">
                                                 <option value="">-- Pilih --</option>
