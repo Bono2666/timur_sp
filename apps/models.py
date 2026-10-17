@@ -509,7 +509,7 @@ class StockDocument(models.Model):
     def scan_state(self):
         """Status operasional petugas scan (Daftar Penerimaan & Dashboard).
 
-        unvalidated      = draft/submitted — belum divalidasi
+        pending_approval = draft/submitted — menunggu persetujuan
         await_validation = approved — menunggu validasi (scan validasi)
         validated        = sudah divalidasi, menunggu posting
         putaway          = menunggu putaway (scan putaway)
@@ -525,7 +525,7 @@ class StockDocument(models.Model):
                     else 'await_validation')
         if self.status == 'posted':
             return 'done'
-        return 'unvalidated'
+        return 'pending_approval'
 
     @property
     def putaway_pending_lines(self):

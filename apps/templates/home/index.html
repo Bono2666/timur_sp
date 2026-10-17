@@ -178,9 +178,9 @@
               {{ kpi.rcv_putaway_pending }} putaway pending
             </p>
             {% endif %}
-            {% if kpi.rcv_unvalidated > 0 %}
+            {% if kpi.rcv_pending_approval > 0 %}
             <p class="text-sm mb-0 {% if kpi.rcv_await_validation > 0 or kpi.rcv_putaway_pending > 0 %}mt-2{% else %}mt-3{% endif %} text-secondary mb-0">
-              {{ kpi.rcv_unvalidated }} belum divalidasi
+              {{ kpi.rcv_pending_approval }} menunggu persetujuan
             </p>
             {% endif %}
           </div>

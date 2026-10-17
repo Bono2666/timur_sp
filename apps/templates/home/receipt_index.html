@@ -23,7 +23,7 @@
                         <form method="get" class="d-flex gap-2">
                             <select name="status" class="form-control form-select-sm" onchange="this.form.submit()">
                                 <option value="">Semua Status</option>
-                                <option value="unvalidated" {% if filter_status == 'unvalidated' %}selected{% endif %}>Belum Divalidasi</option>
+                                <option value="pending_approval" {% if filter_status == 'pending_approval' %}selected{% endif %}>Menunggu Persetujuan</option>
                                 <option value="await_validation" {% if filter_status == 'await_validation' %}selected{% endif %}>Menunggu Validasi</option>
                                 <option value="validated" {% if filter_status == 'validated' %}selected{% endif %}>Sudah Divalidasi</option>
                                 <option value="putaway" {% if filter_status == 'putaway' %}selected{% endif %}>Putaway Pending</option>
@@ -56,7 +56,7 @@
                                     <td><h6 class="mb-0 text-sm">{{ d.partner.name|default:'-' }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ d.total_quantity|qty }}</h6></td>
                                     <td>
-                                        {% if d.scan_state == 'unvalidated' %}<span class="badge bg-gradient-secondary">Belum Divalidasi</span>
+                                        {% if d.scan_state == 'pending_approval' %}<span class="badge bg-gradient-secondary">Menunggu Persetujuan</span>
                                         {% elif d.scan_state == 'await_validation' %}<span class="badge bg-gradient-primary">Menunggu Validasi</span>
                                         {% elif d.scan_state == 'validated' %}<span class="badge bg-gradient-info">Sudah Divalidasi</span>
                                         {% elif d.scan_state == 'putaway' %}<span class="badge bg-gradient-warning">Putaway Pending</span>

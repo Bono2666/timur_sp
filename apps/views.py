@@ -48,7 +48,7 @@ def home(request):
     # KPI Penerimaan Barang (Fase 2)
     bulan_ini = timezone.now().replace(day=1, hour=0, minute=0,
                                        second=0, microsecond=0)
-    rcv_unvalidated = StockDocument.objects.filter(
+    rcv_pending_approval = StockDocument.objects.filter(
         document_type='RCV', status__in=['draft', 'submitted']).count()
     rcv_await_validation = StockDocument.objects.filter(
         document_type='RCV', status='approved',
@@ -71,7 +71,7 @@ def home(request):
             'mitra': total_mitra,
             'stok': total_stok,
             'below_min': di_bawah_minimum,
-            'rcv_unvalidated': rcv_unvalidated,
+            'rcv_pending_approval': rcv_pending_approval,
             'rcv_await_validation': rcv_await_validation,
             'rcv_posted_month': rcv_posted_month,
             'rcv_putaway_pending': rcv_putaway_pending,
@@ -1171,7 +1171,7 @@ def receipt_index(request):
         'warehouse', 'partner').prefetch_related('lines')
     # Penyaringan mengikuti status scan (StockDocument.scan_state)
     scan_filters = {
-        'unvalidated': Q(status__in=['draft', 'submitted']),
+        'pending_approval': Q(status__in=['draft', 'submitted']),
         'await_validation': Q(status='approved', receive_status='pending'),
         'validated': Q(status='approved', receive_status='done'),
         'putaway': Q(putaway_status='pending'),
