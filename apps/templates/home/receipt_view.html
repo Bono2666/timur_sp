@@ -242,7 +242,7 @@
                     <!-- Tabel baris -->
                     <h6 class="mb-2">Detail Barang</h6>
                     <div class="table-responsive">
-                        <table class="table align-items-center mb-0">
+                        <table class="table align-items-center mb-0" id="rcv-detail-table">
                             <thead>
                                 <tr>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">SKU</th>
@@ -311,3 +311,22 @@
 </div>
 
 {% endblock content %}
+
+{% block javascripts %}
+
+<script>
+    $(document).ready( function () {
+        $('#rcv-detail-table').DataTable({
+            'language': {
+                'search': 'Cari: ',
+                'info': 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+                'lengthMenu': 'Tampilkan _MENU_ data',
+                'infoEmpty': '',
+                'zeroRecords': 'Tidak ada data',
+                'paginate': { 'next': 'Selanjutnya', 'previous': 'Sebelumnya' }
+            }
+        });
+    } );
+</script>
+
+{% endblock javascripts %}
