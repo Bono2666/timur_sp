@@ -328,7 +328,7 @@ class FormPartner(ModelForm):
         self.fields['address'].widget = forms.TextInput({'class': 'form-control-sm'})
         self.fields['phone'].widget = forms.TextInput({'class': 'form-control-sm'})
         self.fields['email'].widget = forms.EmailInput({'class': 'form-control-sm'})
-        self.fields['is_active'].widget = forms.CheckboxInput({'class': 'border mt-1'})
+        self.fields['is_active'].widget = forms.CheckboxInput({'class': 'form-check-input'})
 
     class Meta:
         model = Partner
@@ -352,7 +352,7 @@ class FormPartnerView(ModelForm):
         self.fields['partner_type'].widget = forms.Select(
             {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
         self.fields['is_active'].widget = forms.CheckboxInput(
-            {'class': 'border mt-1', 'disabled': 'disabled'})
+            {'class': 'form-check-input', 'disabled': 'disabled'})
 
     class Meta:
         model = Partner
@@ -374,7 +374,7 @@ class FormWarehouse(ModelForm):
         self.fields['name'].widget = forms.TextInput({'class': 'form-control-sm'})
         self.fields['address'].widget = forms.TextInput({'class': 'form-control-sm'})
         self.fields['manager'].widget = forms.TextInput({'class': 'form-control-sm'})
-        self.fields['is_active'].widget = forms.CheckboxInput({'class': 'border mt-1'})
+        self.fields['is_active'].widget = forms.CheckboxInput({'class': 'form-check-input'})
 
     class Meta:
         model = Warehouse
@@ -394,7 +394,7 @@ class FormWarehouseView(ModelForm):
             self.fields[f].widget = forms.TextInput(
                 {'class': 'form-control-sm', 'readonly': 'readonly'})
         self.fields['is_active'].widget = forms.CheckboxInput(
-            {'class': 'border mt-1', 'disabled': 'disabled'})
+            {'class': 'form-check-input', 'disabled': 'disabled'})
 
     class Meta:
         model = Warehouse
@@ -422,7 +422,7 @@ class FormLocation(ModelForm):
         self.fields['barcode'].widget = forms.TextInput({'class': 'form-control-sm'})
         self.fields['location_type'].widget = forms.Select(
             {'class': 'form-control form-select-sm'})
-        self.fields['is_active'].widget = forms.CheckboxInput({'class': 'border mt-1'})
+        self.fields['is_active'].widget = forms.CheckboxInput({'class': 'form-check-input'})
 
     class Meta:
         model = StorageLocation
@@ -450,7 +450,7 @@ class FormLocationView(ModelForm):
         self.fields['location_type'].widget = forms.Select(
             {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
         self.fields['is_active'].widget = forms.CheckboxInput(
-            {'class': 'border mt-1', 'disabled': 'disabled'})
+            {'class': 'form-check-input', 'disabled': 'disabled'})
 
     class Meta:
         model = StorageLocation
@@ -480,7 +480,7 @@ class FormItem(ModelForm):
             {'class': 'form-control form-select-sm'})
         self.fields['minimum_stock'].widget = TrimDecimalInput(
             {'class': 'form-control-sm', 'step': '1', 'min': '0'})
-        self.fields['is_active'].widget = forms.CheckboxInput({'class': 'border mt-1'})
+        self.fields['is_active'].widget = forms.CheckboxInput({'class': 'form-check-input'})
         self.fields['description'].widget = forms.TextInput({'class': 'form-control-sm'})
 
     class Meta:
@@ -510,7 +510,7 @@ class FormItemView(ModelForm):
         self.fields['minimum_stock'].widget = TrimDecimalInput(
             {'class': 'form-control-sm', 'readonly': 'readonly'})
         self.fields['is_active'].widget = forms.CheckboxInput(
-            {'class': 'border mt-1', 'disabled': 'disabled'})
+            {'class': 'form-check-input', 'disabled': 'disabled'})
 
     class Meta:
         model = Item
