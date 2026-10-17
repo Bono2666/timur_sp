@@ -323,7 +323,7 @@ class FormPartner(ModelForm):
         self.fields['code'].widget = forms.TextInput(
             {'class': 'form-control-sm text-uppercase'})
         self.fields['name'].widget = forms.TextInput({'class': 'form-control-sm'})
-        self.fields['partner_type'].widget = forms.Select(
+        self.fields['partner_type'].widget.attrs.update(
             {'class': 'form-control form-select-sm'})
         self.fields['address'].widget = forms.TextInput({'class': 'form-control-sm'})
         self.fields['phone'].widget = forms.TextInput({'class': 'form-control-sm'})
@@ -349,7 +349,7 @@ class FormPartnerView(ModelForm):
         for f in ['code', 'name', 'address', 'phone', 'email']:
             self.fields[f].widget = forms.TextInput(
                 {'class': 'form-control-sm', 'readonly': 'readonly'})
-        self.fields['partner_type'].widget = forms.Select(
+        self.fields['partner_type'].widget.attrs.update(
             {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
         self.fields['is_active'].widget = forms.CheckboxInput(
             {'class': 'form-check-input', 'disabled': 'disabled'})
@@ -412,15 +412,15 @@ class FormLocation(ModelForm):
         self.fields['barcode'].label = 'Barcode'
         self.fields['location_type'].label = 'Tipe Lokasi'
         self.fields['is_active'].label = 'Aktif'
-        self.fields['warehouse'].widget = forms.Select(
+        self.fields['warehouse'].widget.attrs.update(
             {'class': 'form-control form-select-sm'})
-        self.fields['parent'].widget = forms.Select(
+        self.fields['parent'].widget.attrs.update(
             {'class': 'form-control form-select-sm'})
         self.fields['code'].widget = forms.TextInput(
             {'class': 'form-control-sm text-uppercase'})
         self.fields['name'].widget = forms.TextInput({'class': 'form-control-sm'})
         self.fields['barcode'].widget = forms.TextInput({'class': 'form-control-sm'})
-        self.fields['location_type'].widget = forms.Select(
+        self.fields['location_type'].widget.attrs.update(
             {'class': 'form-control form-select-sm'})
         self.fields['is_active'].widget = forms.CheckboxInput({'class': 'form-check-input'})
 
@@ -440,14 +440,14 @@ class FormLocationView(ModelForm):
         self.fields['barcode'].label = 'Barcode'
         self.fields['location_type'].label = 'Tipe Lokasi'
         self.fields['is_active'].label = 'Aktif'
-        self.fields['warehouse'].widget = forms.Select(
+        self.fields['warehouse'].widget.attrs.update(
             {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
-        self.fields['parent'].widget = forms.Select(
+        self.fields['parent'].widget.attrs.update(
             {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
         for f in ['code', 'name', 'barcode']:
             self.fields[f].widget = forms.TextInput(
                 {'class': 'form-control-sm', 'readonly': 'readonly'})
-        self.fields['location_type'].widget = forms.Select(
+        self.fields['location_type'].widget.attrs.update(
             {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
         self.fields['is_active'].widget = forms.CheckboxInput(
             {'class': 'form-check-input', 'disabled': 'disabled'})
@@ -474,9 +474,9 @@ class FormItem(ModelForm):
             {'class': 'form-control-sm text-uppercase'})
         self.fields['name'].widget = forms.TextInput({'class': 'form-control-sm'})
         self.fields['barcode'].widget = forms.TextInput({'class': 'form-control-sm'})
-        self.fields['category'].widget = forms.Select(
+        self.fields['category'].widget.attrs.update(
             {'class': 'form-control form-select-sm'})
-        self.fields['uom'].widget = forms.Select(
+        self.fields['uom'].widget.attrs.update(
             {'class': 'form-control form-select-sm'})
         self.fields['minimum_stock'].widget = TrimDecimalInput(
             {'class': 'form-control-sm', 'step': '1', 'min': '0'})
@@ -503,9 +503,9 @@ class FormItemView(ModelForm):
         for f in ['sku', 'name', 'barcode', 'description']:
             self.fields[f].widget = forms.TextInput(
                 {'class': 'form-control-sm', 'readonly': 'readonly'})
-        self.fields['category'].widget = forms.Select(
+        self.fields['category'].widget.attrs.update(
             {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
-        self.fields['uom'].widget = forms.Select(
+        self.fields['uom'].widget.attrs.update(
             {'class': 'form-control form-select-sm', 'disabled': 'disabled'})
         self.fields['minimum_stock'].widget = TrimDecimalInput(
             {'class': 'form-control-sm', 'readonly': 'readonly'})
@@ -534,9 +534,9 @@ class FormReceipt(ModelForm):
         self.fields['notes'].label = 'Catatan'
         self.fields['operation_type'].label = 'Skema Penerimaan'
         self.fields['receiving_location'].label = 'Lokasi Receiving'
-        self.fields['warehouse'].widget = forms.Select(
+        self.fields['warehouse'].widget.attrs.update(
             {'class': 'form-control form-select-sm'})
-        self.fields['partner'].widget = forms.Select(
+        self.fields['partner'].widget.attrs.update(
             {'class': 'form-control form-select-sm'})
         self.fields['partner'].required = False
         self.fields['reference'].widget = forms.TextInput(
@@ -545,9 +545,9 @@ class FormReceipt(ModelForm):
             {'class': 'form-control-sm', 'type': 'date'})
         self.fields['notes'].widget = forms.TextInput(
             {'class': 'form-control-sm'})
-        self.fields['operation_type'].widget = forms.Select(
+        self.fields['operation_type'].widget.attrs.update(
             {'class': 'form-control form-select-sm', 'id': 'id_operation_type'})
-        self.fields['receiving_location'].widget = forms.Select(
+        self.fields['receiving_location'].widget.attrs.update(
             {'class': 'form-control form-select-sm', 'id': 'id_receiving_location'})
         self.fields['receiving_location'].required = False
 
