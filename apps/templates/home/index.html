@@ -5,6 +5,13 @@
 
 {% block content %}
 
+<style>
+  /* Judul kartu KPI menjadi merah tema saat hover */
+  .kpi-link:hover .kpi-title {
+    color: #FA0202 !important;
+  }
+</style>
+
 <div class="container-fluid py-4">
 
   <!-- Header -->
@@ -29,13 +36,13 @@
   <!-- KPI cards -->
   <div class="row g-3">
     <div class="col-xl-3 col-sm-6">
-      <a href="{% url 'item-index' %}" class="text-decoration-none">
+      <a href="{% url 'item-index' %}" class="text-decoration-none kpi-link">
         <div class="card h-100">
           <div class="card-body p-3">
             <div class="row">
               <div class="col-8">
                 <div class="numbers">
-                  <p class="text-sm mb-0 text-capitalize font-weight-bold">Barang Aktif</p>
+                  <p class="text-sm mb-0 text-capitalize font-weight-bold kpi-title">Barang Aktif</p>
                   <h5 class="font-weight-bolder mb-0">{{ kpi.sku }}</h5>
                   <p class="text-sm mb-0 text-secondary">SKU terdaftar</p>
                 </div>
@@ -52,13 +59,13 @@
     </div>
 
     <div class="col-xl-3 col-sm-6">
-      <a href="{% url 'warehouse-index' %}" class="text-decoration-none">
+      <a href="{% url 'warehouse-index' %}" class="text-decoration-none kpi-link">
         <div class="card h-100">
           <div class="card-body p-3">
             <div class="row">
               <div class="col-8">
                 <div class="numbers">
-                  <p class="text-sm mb-0 text-capitalize font-weight-bold">Gudang Aktif</p>
+                  <p class="text-sm mb-0 text-capitalize font-weight-bold kpi-title">Gudang Aktif</p>
                   <h5 class="font-weight-bolder mb-0">{{ kpi.gudang }}</h5>
                   <p class="text-sm mb-0 text-secondary">Lokasi penyimpanan: {{ kpi.lokasi }}</p>
                 </div>
@@ -118,13 +125,13 @@
 
     <!-- Baris kedua KPI (masih dalam row yang sama agar jarak antarbaris seragam) -->
     <div class="col-xl-3 col-sm-6">
-      <a href="{% url 'partner-index' %}" class="text-decoration-none">
+      <a href="{% url 'partner-index' %}" class="text-decoration-none kpi-link">
         <div class="card h-100">
           <div class="card-body p-3">
             <div class="row">
               <div class="col-8">
                 <div class="numbers">
-                  <p class="text-sm mb-0 text-capitalize font-weight-bold">Mitra Aktif</p>
+                  <p class="text-sm mb-0 text-capitalize font-weight-bold kpi-title">Mitra Aktif</p>
                   <h5 class="font-weight-bolder mb-0">{{ kpi.mitra }}</h5>
                   <p class="text-sm mb-0 text-secondary">Supplier &amp; pelanggan</p>
                 </div>
@@ -142,13 +149,13 @@
 
     {% if 'RCV' in role or request.user.is_superuser %}
     <div class="col-xl-3 col-sm-6">
-      <a href="{% url 'receipt-index' %}" class="text-decoration-none">
+      <a href="{% url 'receipt-index' %}" class="text-decoration-none kpi-link">
         <div class="card h-100">
           <div class="card-body p-3">
             <div class="row">
               <div class="col-8">
                 <div class="numbers">
-                  <p class="text-sm mb-0 text-capitalize font-weight-bold">Penerimaan</p>
+                  <p class="text-sm mb-0 text-capitalize font-weight-bold kpi-title">Penerimaan</p>
                   <h5 class="font-weight-bolder mb-0">{{ kpi.rcv_posted_month }}</h5>
                   <p class="text-sm mb-0 text-secondary">Posted bulan ini</p>
                 </div>
