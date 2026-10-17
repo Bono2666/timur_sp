@@ -4,7 +4,7 @@ from django.db import connection, IntegrityError, transaction
 from django.db.models import ProtectedError, Sum, F, Value
 from django.db.models.functions import Coalesce
 from decimal import Decimal
-from django.http import HttpResponseRedirect, JsonResponse
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from django.conf import settings
@@ -816,17 +816,80 @@ def item_index(request):
     return render(request, 'home/item_index.html', _ctx(request, 'item', 'index', 'BRG', data=data))
 
 
+def _render_labels_pdf(items):
+    """Render label sticker: 1 barang = 1 halaman PDF seukuran label 90x42mm."""
+    from io import BytesIO
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import simpleSplit
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    from reportlab.pdfgen import canvas as pdf_canvas
+    from reportlab.graphics.barcode.code128 import Code128
+
+    page_w, page_h = 90 * mm, 42 * mm
+    pad = 4 * mm
+    buf = BytesIO()
+    canvas = pdf_canvas.Canvas(buf, pagesize=(page_w, page_h))
+    canvas.setTitle('Label Barang - TSP Warehouse')
+
+    for item in items:
+        code = (item.barcode or '').strip()
+        bc = None
+        if code and code.isascii():
+            try:
+                bc = Code128(code, barHeight=11 * mm, barWidth=0.27 * mm,
+                             humanReadable=False)
+            except Exception:
+                bc = None
+        canvas.setFillColorRGB(0.05, 0.05, 0.05)
+        if bc is not None:
+            # barcode rata tengah + angka barcode di bawahnya
+            bc.drawOn(canvas, (page_w - bc.width) / 2, page_h - pad - 11 * mm)
+            canvas.setFont('Helvetica', 8.5)
+            canvas.drawCentredString(page_w / 2, page_h - pad - 14.8 * mm, code)
+        else:
+            canvas.setFont('Helvetica-Oblique', 7.5)
+            canvas.setFillColorRGB(0.68, 0.68, 0.68)
+            canvas.drawCentredString(page_w / 2, page_h - 11 * mm, 'TANPA BARCODE')
+
+        # Nama barang: tebal, maksimal 3 baris, elipsis bila terpotong
+        canvas.setFillColorRGB(0.05, 0.05, 0.05)
+        canvas.setFont('Helvetica-Bold', 12.5)
+        lines = simpleSplit(item.name or '', 'Helvetica-Bold', 12.5,
+                            page_w - 2 * pad)
+        if len(lines) > 3:
+            lines = lines[:3]
+            while lines[2] and stringWidth(
+                    lines[2] + '...', 'Helvetica-Bold', 12.5) > page_w - 2 * pad:
+                lines[2] = lines[2][:-1]
+            lines[2] += '...'
+        first_y = page_h - 24 * mm
+        for i, ln in enumerate(lines):
+            canvas.drawString(pad, first_y - i * 4.9 * mm, ln)
+
+        # SKU di kiri bawah
+        canvas.setFont('Helvetica', 8.5)
+        canvas.setFillColorRGB(0.27, 0.27, 0.27)
+        canvas.drawString(pad, 4 * mm, item.sku)
+
+        canvas.showPage()
+
+    canvas.save()
+    return buf.getvalue()
+
+
 @login_required(login_url='/login/')
 @role_required(allowed_roles='BRG')
 def item_label_print(request):
-    """Cetak label sticker barang terpilih: barcode, nama barang, SKU."""
+    """Cetak label sticker barang terpilih: PDF, 1 label = 1 halaman seukuran label."""
     id_list = [int(x) for x in request.GET.get('ids', '').split(',')
                if x.strip().isdigit()]
-    data = (Item.objects.filter(pk__in=id_list).select_related(
+    items = (Item.objects.filter(pk__in=id_list).select_related(
         'category', 'uom').order_by('sku') if id_list else [])
-    if not data:
+    if not items:
         return HttpResponseRedirect(reverse('item-index'))
-    return render(request, 'home/item_label_print.html', {'data': data})
+    pdf = _render_labels_pdf(items)
+    return HttpResponse(pdf, content_type='application/pdf', headers={
+        'Content-Disposition': 'inline; filename="label-barang.pdf"'})
 
 
 @login_required(login_url='/login/')
