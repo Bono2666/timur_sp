@@ -115,10 +115,8 @@
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Mitra + Penerimaan -->
-  <div class="row g-3 mt-3">
+    <!-- Baris kedua KPI (masih dalam row yang sama agar jarak antarbaris seragam) -->
     <div class="col-xl-3 col-sm-6">
       <a href="{% url 'partner-index' %}" class="text-decoration-none">
         <div class="card h-100">
@@ -179,12 +177,13 @@
       </a>
     </div>
     {% endif %}
-  </div>
 
-  <!-- Modul menyusul (baris terpisah agar ada jelas dengan KPI) -->
-  <div class="row mt-4">
-    <div class="col-xl-9 col-sm-6">
-      <div class="card">
+    <!-- Modul menyusul: saudara langsung kartu KPI pada row yang sama →
+         barisnya dibungkus oleh mekanisme yang sama, jadi jarak barisnya
+         identik dengan jarak antar baris KPI (col-xl-9 tidak muat di baris
+         Mitra/Penerimaan sehingga otomatis turun ke baris berikutnya) -->
+    <div class="col-xl-9 col-12">
+      <div class="card h-100">
         <div class="card-header bg-transparent">
           <h6 class="mb-0">Modul menyusul</h6>
         </div>
