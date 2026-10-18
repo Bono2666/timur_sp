@@ -23,6 +23,7 @@
                         <form method="get" class="d-flex gap-2">
                             <select name="status" class="form-control form-select-sm" onchange="this.form.submit()">
                                 <option value="">Semua Status</option>
+                                <option value="not_posted" {% if filter_status == 'not_posted' %}selected{% endif %}>Belum Diposting</option>
                                 <option value="pending_approval" {% if filter_status == 'pending_approval' %}selected{% endif %}>Menunggu Persetujuan</option>
                                 <option value="await_validation" {% if filter_status == 'await_validation' %}selected{% endif %}>Menunggu Validasi</option>
                                 <option value="validated" {% if filter_status == 'validated' %}selected{% endif %}>Sudah Divalidasi</option>

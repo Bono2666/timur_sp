@@ -59,6 +59,12 @@ def home(request):
     rcv_putaway_pending = StockDocument.objects.filter(
         document_type='RCV', status='posted',
         putaway_status='pending').count()
+    # Penerimaan belum di-Post (belum masuk ke stok): draf, menunggu
+    # persetujuan, menunggu validasi, atau sudah divalidasi — semuanya
+    # masih berstatus approved/draft/submitted.
+    rcv_not_posted = StockDocument.objects.filter(
+        document_type='RCV',
+        status__in=['draft', 'submitted', 'approved']).count()
 
     context = {
         'segment': 'index',
@@ -75,6 +81,7 @@ def home(request):
             'rcv_await_validation': rcv_await_validation,
             'rcv_posted_month': rcv_posted_month,
             'rcv_putaway_pending': rcv_putaway_pending,
+            'rcv_not_posted': rcv_not_posted,
         },
     }
     return render(request, 'home/index.html', context)
@@ -1171,6 +1178,7 @@ def receipt_index(request):
         'warehouse', 'partner').prefetch_related('lines')
     # Penyaringan mengikuti status scan (StockDocument.scan_state)
     scan_filters = {
+        'not_posted': Q(status__in=['draft', 'submitted', 'approved']),
         'pending_approval': Q(status__in=['draft', 'submitted']),
         'await_validation': Q(status='approved', receive_status='pending'),
         'validated': Q(status='approved', receive_status='done'),
