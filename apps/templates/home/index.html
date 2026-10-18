@@ -173,22 +173,22 @@
       </a>
     </div>
 
-    <!-- Penerimaan belum di-Post (draf -> menunggu persetujuan -> menunggu
-         validasi -> sudah divalidasi; semuanya belum masuk ke stok) -->
+    <!-- Penerimaan sudah divalidasi tapi belum di-Post (receive done,
+         status approved — belum masuk ke stok) -->
     <div class="col-xl-3 col-sm-6">
-      <a href="{% url 'receipt-index' %}{% if kpi.rcv_not_posted > 0 %}?status=not_posted{% endif %}" class="text-decoration-none kpi-link">
+      <a href="{% url 'receipt-index' %}{% if kpi.rcv_validated_unposted > 0 %}?status=validated{% endif %}" class="text-decoration-none kpi-link">
         <div class="card h-100">
           <div class="card-body p-3">
             <div class="row">
               <div class="col-8">
                 <div class="numbers">
-                  <p class="text-sm mb-0 text-capitalize font-weight-bold kpi-title">Penerimaan Belum Post</p>
-                  <h5 class="font-weight-bolder mb-0">{{ kpi.rcv_not_posted }}</h5>
-                  <p class="text-sm mb-0 text-secondary">Draf, menunggu persetujuan &amp; validasi</p>
+                  <p class="text-sm mb-0 text-capitalize font-weight-bold kpi-title">Validasi Belum Post</p>
+                  <h5 class="font-weight-bolder mb-0">{{ kpi.rcv_validated_unposted }}</h5>
+                  <p class="text-sm mb-0 text-secondary">Sudah divalidasi, belum masuk stok</p>
                 </div>
               </div>
               <div class="col-4 text-end">
-                <div class="icon icon-shape {% if kpi.rcv_not_posted > 0 %}bg-gradient-warning{% else %}bg-gradient-primary{% endif %} shadow text-center border-radius-md">
+                <div class="icon icon-shape {% if kpi.rcv_validated_unposted > 0 %}bg-gradient-warning{% else %}bg-gradient-primary{% endif %} shadow text-center border-radius-md">
                   <i class="fas fa-file-import text-lg opacity-10" aria-hidden="true"></i>
                 </div>
               </div>
