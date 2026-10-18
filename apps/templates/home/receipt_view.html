@@ -17,7 +17,7 @@
                             <span class="badge bg-gradient-dark me-2">{% if data.operation_type == 'staged' %}2 Tahap{% else %}1 Tahap{% endif %}</span>
                         </div>
                         <div class="col-7 text-end">
-                            <a href="{% url 'receipt-index' %}" class="btn btn-sm bg-gradient-dark mb-0"><i class="fas fa-reply"></i>&nbsp;&nbsp;Kembali</a>
+                            <a href="{% url 'receipt-index' %}" id="btn-back" class="btn btn-sm bg-gradient-dark mb-0"><i class="fas fa-reply"></i>&nbsp;&nbsp;Kembali</a>
 
                             {% if data.status == 'draft' %}
                               {% if btn.edit or request.user.is_superuser %}
@@ -333,6 +333,27 @@
                 'paginate': { 'next': 'Selanjutnya', 'previous': 'Sebelumnya' }
             }
         });
+
+        // Tombol Kembali: arahkan ke daftar dengan query yang sama saat halaman
+        // ini dibuka dari daftar (mis. ?status=await_validation seperti link
+        // Dashboard) sehingga filter tidak hilang — termasuk setelah redirect
+        // aksi (submit/approve/validasi/post) yang referrer-nya = halaman ini.
+        try {
+            var listPath = "{% url 'receipt-index' %}";
+            var norm = function (p) { return p.replace(/\/+$/, ''); };
+            var ref = document.referrer ? new URL(document.referrer) : null;
+            if (ref && ref.origin === location.origin) {
+                if (norm(ref.pathname) === norm(listPath)) {
+                    sessionStorage.setItem('rcv-back-query', ref.search);
+                } else if (norm(ref.pathname) !== norm(location.pathname)) {
+                    // halaman lain (mis. Dashboard) -> mulai dari daftar polos
+                    sessionStorage.setItem('rcv-back-query', '');
+                }
+                // referrer = halaman ini sendiri (redirect aksi) -> pertahankan
+            }
+            var q = sessionStorage.getItem('rcv-back-query');
+            if (q) { $('#btn-back').attr('href', listPath + q); }
+        } catch (e) { /* tanpa sessionStorage/referrer -> href bawaan */ }
     } );
 </script>
 
