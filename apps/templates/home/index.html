@@ -8,9 +8,14 @@
 {% block content %}
 
 <style>
-  /* Judul kartu KPI menjadi merah tema saat hover */
-  .kpi-link:hover .kpi-title {
-    color: #FA0202 !important;
+  /* Kartu KPI yang bisa diklik: efek mengangkat sedikit saat hover
+     (tanpa mengganti warna judul). */
+  .kpi-link .card {
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .kpi-link:hover .card {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 22px rgba(2, 49, 204, .16);
   }
 </style>
 
