@@ -334,26 +334,13 @@
             }
         });
 
-        // Tombol Kembali: arahkan ke daftar dengan query yang sama saat halaman
-        // ini dibuka dari daftar (mis. ?status=await_validation seperti link
-        // Dashboard) sehingga filter tidak hilang — termasuk setelah redirect
-        // aksi (submit/approve/validasi/post) yang referrer-nya = halaman ini.
+        // Tombol Kembali: arahkan ke daftar dengan query tersimpan oleh halaman
+        // daftar (mis. ?status=await_validation seperti link Dashboard) sehingga
+        // filter tidak hilang — termasuk setelah redirect dari halaman Validasi.
         try {
-            var listPath = "{% url 'receipt-index' %}";
-            var norm = function (p) { return p.replace(/\/+$/, ''); };
-            var ref = document.referrer ? new URL(document.referrer) : null;
-            if (ref && ref.origin === location.origin) {
-                if (norm(ref.pathname) === norm(listPath)) {
-                    sessionStorage.setItem('rcv-back-query', ref.search);
-                } else if (norm(ref.pathname) !== norm(location.pathname)) {
-                    // halaman lain (mis. Dashboard) -> mulai dari daftar polos
-                    sessionStorage.setItem('rcv-back-query', '');
-                }
-                // referrer = halaman ini sendiri (redirect aksi) -> pertahankan
-            }
             var q = sessionStorage.getItem('rcv-back-query');
-            if (q) { $('#btn-back').attr('href', listPath + q); }
-        } catch (e) { /* tanpa sessionStorage/referrer -> href bawaan */ }
+            if (q) { $('#btn-back').attr('href', "{% url 'receipt-index' %}" + q); }
+        } catch (e) { /* tanpa sessionStorage -> href bawaan */ }
     } );
 </script>
 

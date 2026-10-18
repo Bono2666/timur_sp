@@ -49,7 +49,7 @@
                             </thead>
                             <tbody>
                                 {% for d in data %}
-                                <tr data-href="{% url 'receipt-view' d.pk %}" class="cursor-pointer">
+                                <tr data-href="{% url 'receipt-view' d.pk %}"{% if d.scan_state == 'await_validation' %} data-validate="{% url 'receipt-validate' d.pk %}"{% endif %} class="cursor-pointer">
                                     <td><h6 class="mb-0 text-sm">{{ d.number }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ d.document_date|date:'d/m/Y' }}</h6></td>
                                     <td><h6 class="mb-0 text-sm">{{ d.warehouse.code }}</h6></td>
@@ -88,8 +88,20 @@
             }
         });
 
+        // Simpan query daftar (dipakai tombol Kembali di halaman detail),
+        // mis. ?status=await_validation saat dibuka dari kartu Dashboard.
+        try { sessionStorage.setItem('rcv-back-query', location.search || ''); } catch (e) {}
+
+        // Daftar dibuka dari Dashboard (kartu Penerimaan ber-?status=await_validation):
+        // klik item yang menunggu validasi langsung menuju Validasi Penerimaan.
+        var fromDashboard = false;
+        try { fromDashboard = new URLSearchParams(location.search).get('status') === 'await_validation'; } catch (e) {}
+
         $(document).on('click', 'tbody tr', function() {
-            if ($(this).data('href')) { window.location = $(this).data('href'); }
+            var href = $(this).data('href');
+            if (!href) { return; }
+            var validate = fromDashboard ? $(this).data('validate') : null;
+            window.location = validate || href;
         });
     } );
 </script>
