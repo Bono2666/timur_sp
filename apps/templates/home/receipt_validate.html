@@ -13,7 +13,7 @@
                 <div class="card">
                     <div class="card-header">
                         <div class="row">
-                            <div class="col-6 d-flex align-items-center flex-wrap">
+                            <div class="col-6 d-flex align-items-center flex-wrap mb-4">
                                 <h4 class="mb-2 me-3">Validasi Penerimaan — {{ data.number }}</h4>
                                 {% if data.operation_type == 'staged' %}
                                 <span class="badge bg-gradient-info me-1">2 Tahap</span>
@@ -45,7 +45,7 @@
                                 <label class="text-muted text-xs">Scan barcode / ketik SKU (Enter), atau klik Scan Barang untuk kamera — input baris baru aktif setelah barang discan</label>
                                 <div class="input-group">
                                     <input type="text" id="scan-input" class="form-control" placeholder="Scan atau ketik SKU..." autocomplete="off">
-                                    <button type="button" id="btn-scan-camera" class="btn bg-gradient-dark text-nowrap" data-bs-toggle="modal" data-bs-target="#modal-scan"><i class="fas fa-barcode"></i>&nbsp;&nbsp;Scan Barang</button>
+                                    <button type="button" id="btn-scan-camera" class="btn bg-gradient-dark text-nowrap mb-0" data-bs-toggle="modal" data-bs-target="#modal-scan"><i class="fas fa-barcode"></i>&nbsp;&nbsp;Scan Barang</button>
                                 </div>
                             </div>
                             <div class="col-md-6 d-flex align-items-end">
@@ -109,7 +109,7 @@
                             <p id="scan-status" class="text-sm mb-0 text-secondary">Arahkan kamera ke barcode barang...</p>
                         </div>
                         <div class="modal-footer border-0">
-                            <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Tutup</button>
+                            <button type="button" class="btn btn-sm bg-gradient-secondary mb-0" data-bs-dismiss="modal">Tutup</button>
                         </div>
                     </div>
                 </div>
