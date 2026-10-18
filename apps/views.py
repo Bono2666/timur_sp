@@ -53,8 +53,9 @@ def home(request):
     rcv_await_validation = StockDocument.objects.filter(
         document_type='RCV', status='approved',
         receive_status='pending').count()
-    rcv_posted_month = StockDocument.objects.filter(
+    rcv_done_month = StockDocument.objects.filter(
         document_type='RCV', status='posted',
+        putaway_status__in=['none', 'done'],
         posted_at__gte=bulan_ini).count()
     rcv_putaway_pending = StockDocument.objects.filter(
         document_type='RCV', status='posted',
@@ -73,7 +74,7 @@ def home(request):
             'below_min': di_bawah_minimum,
             'rcv_pending_approval': rcv_pending_approval,
             'rcv_await_validation': rcv_await_validation,
-            'rcv_posted_month': rcv_posted_month,
+            'rcv_done_month': rcv_done_month,
             'rcv_putaway_pending': rcv_putaway_pending,
         },
     }
