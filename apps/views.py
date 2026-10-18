@@ -1434,7 +1434,9 @@ def receipt_putaway(request, _id):
     errors = []
 
     if request.POST:
-        qty_l = request.POST.getlist('p_qty')
+        # Nama per indeks (p_qty_0, p_qty_1, ...) — input baris yang di-disable
+        # (belum discan) tidak ikut terkirim; parsing per posisi tetap akurat.
+        qty_l = [request.POST.get('p_qty_%d' % i, '') for i in range(len(lines))]
 
         def dec(raw):
             raw = (raw or '').strip().replace(',', '')

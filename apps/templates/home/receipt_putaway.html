@@ -38,8 +38,11 @@
                     <div class="card-body">
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label class="text-muted text-xs">Scan barcode / ketik SKU, lalu tekan Enter</label>
-                                <input type="text" id="scan-input" class="form-control" placeholder="Scan atau ketik SKU..." autocomplete="off">
+                                <label class="text-muted text-xs">Scan barcode / ketik SKU (Enter), atau klik Scan Barang untuk kamera — input baris baru aktif setelah barang discan</label>
+                                <div class="input-group">
+                                    <input type="text" id="scan-input" class="form-control" placeholder="Scan atau ketik SKU..." autocomplete="off">
+                                    <button type="button" id="btn-scan-camera" class="btn bg-gradient-dark text-nowrap mb-0" data-bs-toggle="modal" data-bs-target="#modal-scan"><i class="fas fa-barcode"></i>&nbsp;&nbsp;Scan Barang</button>
+                                </div>
                             </div>
                             <div class="col-md-6 d-flex align-items-end">
                                 <p class="text-sm text-secondary mb-1">
@@ -70,7 +73,7 @@
                                         <td><h6 class="mb-0 text-sm">{{ data.receiving_location.code }}</h6></td>
                                         <td><h6 class="mb-0 text-sm">{{ line.destination_location.code }}</h6></td>
                                         <td><h6 class="mb-0 text-sm">{{ line.putaway_remaining|qty }}</h6></td>
-                                        <td><input type="number" step="1" min="0" name="p_qty" class="form-control form-control-sm p-qty" value="{{ line.putaway_remaining|qty }}"></td>
+                                        <td><input type="number" step="1" min="0" name="p_qty_{{ forloop.counter0 }}" class="form-control form-control-sm p-qty" value="{{ line.putaway_remaining|qty }}"></td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -79,6 +82,25 @@
                     </div>
                 </div>
             </form>
+
+            <!-- Modal Scan Barang (kamera) -->
+            <div class="modal fade" id="modal-scan" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Scan Barang</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="camera-reader" class="mb-2"></div>
+                            <p id="scan-status" class="text-sm mb-0 text-secondary">Arahkan kamera ke barcode barang...</p>
+                        </div>
+                        <div class="modal-footer border-0">
+                            <button type="button" class="btn btn-sm bg-gradient-secondary mb-0" data-bs-dismiss="modal">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -86,34 +108,95 @@
 {% endblock content %}
 
 {% block javascripts %}
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+    #camera-reader { background: #141727; border-radius: .75rem; min-height: 220px; overflow: hidden; }
+    #camera-reader video { width: 100% !important; }
+    /* Radius kanan input SKU = 0 agar menyambung dengan tombol Scan
+       (Soft UI memaksa .form-control radius-kanan 0.5rem !important). */
+    #scan-input { border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; }
+</style>
 <script>
     (function () {
-        var scan = document.getElementById('scan-input');
         var body = document.getElementById('putaway-lines');
+        var scan = document.getElementById('scan-input');
+        var scanModalEl = document.getElementById('modal-scan');
+        var scanModal = new bootstrap.Modal(scanModalEl);
+        var scanStatus = document.getElementById('scan-status');
+        var html5Qr = null;
 
-        // Scan barcode / ketik SKU -> lompat ke baris barang
-        scan.addEventListener('keydown', function (e) {
-            if (e.key !== 'Enter') return;
-            e.preventDefault();
-            var code = scan.value.trim().toUpperCase();
-            if (!code) return;
+        function setRowEnabled(r, on) {
+            // Satu input jumlah per baris (.p-qty) — aktif hanya setelah baris discan.
+            var els = r.querySelectorAll('input, select');
+            for (var j = 0; j < els.length; j++) { els[j].disabled = !on; }
+        }
+
+        function handleScan(rawCode) {
+            var code = (rawCode || '').trim().toUpperCase();
+            if (!code) return null;
+            var match = null;
             var rows = body.querySelectorAll('tr');
             for (var i = 0; i < rows.length; i++) {
                 var r = rows[i];
                 if (r.getAttribute('data-barcode') === code || r.getAttribute('data-sku') === code) {
+                    match = r;
+                    setRowEnabled(r, true);   // cocok → input jumlah baris terbuka
                     r.classList.add('table-active');
                     r.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                    var input = r.querySelector('.p-qty');
-                    input.focus();
-                    input.select();
+                    var qty = r.querySelector('.p-qty');
+                    if (qty) { qty.focus(); qty.select(); }
                     setTimeout(function () { r.classList.remove('table-active'); }, 3000);
-                    scan.value = '';
-                    return;
                 }
             }
-            alert('Barang dengan barcode/SKU "' + code + '" tidak ada dalam daftar putaway.');
-            scan.select();
+            if (!match) {
+                alert('Barang dengan barcode/SKU "' + code + '" tidak ada dalam daftar putaway.');
+            }
+            return match;
+        }
+
+        // Awal: SEMUA input jumlah disabled; terbuka per baris setelah discan.
+        var initRows = body.querySelectorAll('tr');
+        for (var k = 0; k < initRows.length; k++) { setRowEnabled(initRows[k], false); }
+
+        // Scan manual (keyboard): Enter di input SKU.
+        scan.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            handleScan(scan.value);
+            scan.value = '';
+            scan.focus();
         });
+
+        // Scan kamera (tombol Scan Barang membuka modal #modal-scan).
+        scanModalEl.addEventListener('shown.bs.modal', function () {
+            var reader = document.getElementById('camera-reader');
+            scanStatus.textContent = 'Arahkan kamera ke barcode barang...';
+            scanStatus.className = 'text-sm mb-0 text-secondary';
+            html5Qr = new Html5Qrcode('camera-reader');
+            html5Qr.start({ facingMode: 'environment' },
+                { fps: 10, qrbox: { width: 250, height: 160 } },
+                function (decoded) {
+                    var row = handleScan(decoded);
+                    if (row) {                 // cocok → tutup modal + matikan kamera
+                        scanModal.hide();
+                    } else {                    // tidak cocok → tetap buka, status merah
+                        scanStatus.textContent = '"' + decoded + '" tidak ada dalam daftar putaway.';
+                        scanStatus.className = 'text-sm mb-0 text-danger fw-bold';
+                    }
+                },
+                function () { /* frame tanpa barcode: diam */ }
+            ).catch(function (err) {
+                scanStatus.textContent = 'Kamera tidak dapat diakses (' + err + '). Gunakan scan manual di atas.';
+                scanStatus.className = 'text-sm mb-0 text-danger';
+            });
+        });
+
+        function stopCamera() {
+            if (html5Qr) {
+                html5Qr.stop().then(function () { html5Qr.clear(); html5Qr = null; }).catch(function () {});
+            }
+        }
+        scanModalEl.addEventListener('hidden.bs.modal', stopCamera);
 
         scan.focus();
     })();
