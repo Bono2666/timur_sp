@@ -42,8 +42,11 @@
                     <div class="card-body">
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label class="text-muted text-xs">Scan barcode / ketik SKU, lalu tekan Enter</label>
-                                <input type="text" id="scan-input" class="form-control" placeholder="Scan atau ketik SKU..." autocomplete="off">
+                                <label class="text-muted text-xs">Scan barcode / ketik SKU (Enter), atau klik Scan Barang untuk kamera — input baris baru aktif setelah barang discan</label>
+                                <div class="input-group">
+                                    <input type="text" id="scan-input" class="form-control" placeholder="Scan atau ketik SKU..." autocomplete="off">
+                                    <button type="button" id="btn-scan-camera" class="btn bg-gradient-dark text-nowrap" data-bs-toggle="modal" data-bs-target="#modal-scan"><i class="fas fa-barcode"></i>&nbsp;&nbsp;Scan Barang</button>
+                                </div>
                             </div>
                             <div class="col-md-6 d-flex align-items-end">
                                 <p class="text-sm text-secondary mb-1">
@@ -92,6 +95,25 @@
                     </div>
                 </div>
             </form>
+
+            <!-- Modal Scan Barang (kamera) -->
+            <div class="modal fade" id="modal-scan" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Scan Barang</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="camera-reader" class="mb-2"></div>
+                            <p id="scan-status" class="text-sm mb-0 text-secondary">Arahkan kamera ke barcode barang...</p>
+                        </div>
+                        <div class="modal-footer border-0">
+                            <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -99,10 +121,26 @@
 {% endblock content %}
 
 {% block javascripts %}
+<style>
+    #camera-reader { background: #141727; border-radius: .75rem; min-height: 220px; overflow: hidden; }
+    #camera-reader video { width: 100% !important; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
     (function () {
         var scan = document.getElementById('scan-input');
         var body = document.getElementById('validate-lines');
+
+        // Status awal: SEMUA input baris (jumlah + lokasi karantina) disable;
+        // hanya aktif per baris setelah barang discan dan cocok dengan daftar item.
+        function setRowEnabled(r, on) {
+            var els = r.querySelectorAll('input, select');
+            for (var j = 0; j < els.length; j++) { els[j].disabled = !on; }
+            if (on) { r.setAttribute('data-scanned', '1'); }
+            else { r.removeAttribute('data-scanned'); }
+        }
+        var allRows = body.querySelectorAll('tr');
+        for (var k = 0; k < allRows.length; k++) { setRowEnabled(allRows[k], false); }
 
         // Auto isi "diterima layak" = total diterima (selama belum diubah manual)
         body.addEventListener('input', function (e) {
@@ -113,10 +151,20 @@
             }
         });
 
-        // Submit: pastikan accepted + rejected == received (validasi ringan)
+        // Submit: SEMUA baris wajib sudah discan (input aktif & terkirim utuh),
+        // lalu pastikan accepted + rejected == received (validasi ringan)
         var form = scan.closest('form');
         form.addEventListener('submit', function (ev) {
             var rows = body.querySelectorAll('tr');
+            var belum = [];
+            for (var i = 0; i < rows.length; i++) {
+                if (!rows[i].hasAttribute('data-scanned')) { belum.push(i + 1); }
+            }
+            if (belum.length) {
+                ev.preventDefault();
+                alert('Baris ' + belum.join(', ') + ': barang belum discan. Scan seluruh barang terlebih dahulu.');
+                return;
+            }
             for (var i = 0; i < rows.length; i++) {
                 var r = rows[i];
                 var rec = parseFloat(r.querySelector('.v-received').value || '0');
@@ -135,28 +183,95 @@
             }
         });
 
-        // Scan barcode / ketik SKU -> lompat ke baris barang
-        scan.addEventListener('keydown', function (e) {
-            if (e.key !== 'Enter') return;
-            e.preventDefault();
-            var code = scan.value.trim().toUpperCase();
-            if (!code) return;
+        // Cocokkan kode barang dengan daftar item validasi; bila cocok ->
+        // aktifkan input baris tersebut (scan keyboard maupun kamera kini sama).
+        function handleScan(rawCode) {
+            var code = (rawCode || '').trim().toUpperCase();
+            if (!code) return null;
             var rows = body.querySelectorAll('tr');
             for (var i = 0; i < rows.length; i++) {
                 var r = rows[i];
                 if (r.getAttribute('data-barcode') === code || r.getAttribute('data-sku') === code) {
+                    setRowEnabled(r, true);
                     r.classList.add('table-active');
                     r.scrollIntoView({ block: 'center', behavior: 'smooth' });
                     var input = r.querySelector('.v-received');
                     input.focus();
                     input.select();
                     setTimeout(function () { r.classList.remove('table-active'); }, 3000);
-                    scan.value = '';
-                    return;
+                    return r;
                 }
             }
+            return null;
+        }
+
+        // Scan barcode / ketik SKU -> lompat ke baris barang + aktifkan inputnya
+        scan.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            var code = scan.value.trim().toUpperCase();
+            if (!code) return;
+            if (handleScan(code)) { scan.value = ''; return; }
             alert('Barang dengan barcode/SKU "' + code + '" tidak ada pada dokumen ini.');
             scan.select();
+        });
+
+        // --- Tombol Scan Barang: kamera via html5-qrcode ---
+        var modalEl = document.getElementById('modal-scan');
+        var statusEl = document.getElementById('scan-status');
+        var camera = null;
+        var lastRow = null;
+
+        function setStatus(msg, kind) {
+            statusEl.textContent = msg;
+            statusEl.className = 'text-sm mb-0 ' +
+                (kind === 'ok' ? 'text-success' : kind === 'err' ? 'text-danger' : 'text-secondary');
+        }
+
+        function stopCamera() {
+            if (!camera) return;
+            var c = camera; camera = null;
+            try { c.stop().then(function () { c.clear(); }).catch(function () {}); } catch (e) {}
+        }
+
+        modalEl.addEventListener('shown.bs.modal', function () {
+            lastRow = null;
+            setStatus('Arahkan kamera ke barcode barang...', 'info');
+            if (typeof Html5Qrcode === 'undefined') {
+                setStatus('Library kamera belum termuat — periksa koneksi internet.', 'err');
+                return;
+            }
+            camera = new Html5Qrcode('camera-reader');
+            camera.start(
+                { facingMode: 'environment' },
+                { fps: 10, qrbox: { width: 250, height: 150 } },
+                function (text) {
+                    var row = handleScan(text);
+                    if (row) {
+                        lastRow = row;
+                        setStatus('Cocok: "' + text + '" — input jumlah & karantina baris ini aktif.', 'ok');
+                        var m = bootstrap.Modal.getInstance(modalEl) ||
+                                bootstrap.Modal.getOrCreateInstance(modalEl);
+                        m.hide();
+                    } else {
+                        setStatus('Barcode "' + text + '" tidak ada pada dokumen ini.', 'err');
+                    }
+                },
+                function () { /* frame tanpa barcode: abaikan */ }
+            ).catch(function (err) {
+                setStatus('Kamera tidak dapat dibuka: ' +
+                    (err && err.message ? err.message : err) +
+                    '. Izinkan akses kamera (butuh HTTPS atau localhost).', 'err');
+            });
+        });
+
+        modalEl.addEventListener('hidden.bs.modal', function () {
+            stopCamera();
+            if (lastRow) {
+                var inp = lastRow.querySelector('.v-received');
+                if (inp) { inp.focus(); inp.select(); }
+            }
+            lastRow = null;
         });
 
         scan.focus();
