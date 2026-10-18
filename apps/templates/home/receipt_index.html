@@ -60,8 +60,6 @@
                                         <span class="badge {{ d.scan_state_css }}">{{ d.scan_state_label }}</span>
                                     </td>
                                 </tr>
-                                {% empty %}
-                                <tr><td colspan="6" class="text-center text-secondary text-sm py-4">Belum ada dokumen penerimaan.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -84,6 +82,7 @@
                 'info': 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
                 'lengthMenu': 'Tampilkan _MENU_ data',
                 'infoEmpty': '',
+                'emptyTable': 'Belum ada dokumen penerimaan.',
                 'zeroRecords': 'Tidak ada data',
                 'paginate': { 'next': 'Selanjutnya', 'previous': 'Sebelumnya' }
             }
