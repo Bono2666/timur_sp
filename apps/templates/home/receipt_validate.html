@@ -124,6 +124,9 @@
 <style>
     #camera-reader { background: #141727; border-radius: .75rem; min-height: 220px; overflow: hidden; }
     #camera-reader video { width: 100% !important; }
+    /* Radius kanan input SKU = 0 agar menyambung dengan tombol Scan
+       (Soft UI memaksa .form-control radius-kanan 0.5rem !important). */
+    #scan-input { border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
