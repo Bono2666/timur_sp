@@ -1,0 +1,293 @@
+{% extends 'layouts/base.html' %}
+{% load apps_tags %}
+
+{% block title %} Detail Stock Opname {% endblock title %}
+
+{% block content %}
+
+<div class="container-fluid mt-0">
+    <div class="row">
+        <div class="col-xl-12 order-xl-1">
+            <div class="card">
+                <div class="card-header">
+                    <div class="row">
+                        <div class="col-5 d-flex align-items-center flex-wrap mb-4">
+                            <h4 class="mb-2 me-3">{{ doc.number }}</h4>
+                            <span class="badge {{ doc.status_css }} me-2">{{ doc.status_label }}</span>
+                            <span class="badge bg-gradient-dark me-2">Opname {{ doc.opname_date|date:'d/m/Y' }}</span>
+                        </div>
+                        <div class="col-7 text-end">
+                            <a href="{% url 'opname-index' %}" id="btn-back" class="btn btn-sm bg-gradient-dark mb-0"><i class="fas fa-reply"></i>&nbsp;&nbsp;Kembali</a>
+
+                            {% if doc.status == 'draft' %}
+                              {% if btn.edit or request.user.is_superuser %}
+                              <a href="{% url 'opname-edit' doc.pk %}" class="btn btn-sm bg-gradient-dark mb-0"><i class="fas fa-edit"></i>&nbsp;&nbsp;Edit Hitungan</a>
+                              {% endif %}
+                              <button class="btn btn-sm bg-gradient-primary mb-0" data-bs-toggle="modal" data-bs-target="#modal-submit"><i class="fas fa-paper-plane"></i>&nbsp;&nbsp;Submit</button>
+                              <button class="btn btn-sm bg-gradient-danger mb-0" data-bs-toggle="modal" data-bs-target="#modal-cancel"><i class="fas fa-ban"></i>&nbsp;&nbsp;Batalkan</button>
+
+                            {% elif doc.status == 'submitted' %}
+                              <button class="btn btn-sm bg-gradient-success mb-0" data-bs-toggle="modal" data-bs-target="#modal-approve"><i class="fas fa-check"></i>&nbsp;&nbsp;Setujui</button>
+                              <button class="btn btn-sm bg-gradient-warning mb-0" data-bs-toggle="modal" data-bs-target="#modal-reject"><i class="fas fa-times"></i>&nbsp;&nbsp;Tolak</button>
+
+                            {% elif doc.status == 'approved' %}
+                              <button class="btn btn-sm bg-gradient-success mb-0" data-bs-toggle="modal" data-bs-target="#modal-post"><i class="fas fa-database"></i>&nbsp;&nbsp;Post Opname</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                {% if error %}
+                <div class="m-4">
+                    <div class="alert alert-danger text-white text-sm mb-0">{{ error }}</div>
+                </div>
+                {% endif %}
+
+                {% if changed_lines and doc.status == 'approved' %}
+                <div class="m-4">
+                    <div class="alert alert-warning text-white text-sm mb-0">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <strong>Perhatian:</strong> saldo sistem berubah selama sesi opname berlangsung pada
+                        {{ changed_lines|length }} baris. Posting akan menyesuaikan terhadap <strong>saldo terbaru</strong>,
+                        bukan snapshot awal. Periksa kembali hasil hitung pada baris bertanda
+                        <span class="badge bg-gradient-warning">Saldo berubah</span>.
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if doc.reject_reason and doc.status == 'draft' %}
+                <div class="m-4 mb-0">
+                    <div class="alert alert-warning text-white text-sm mb-0">Sesi pernah ditolak: {{ doc.reject_reason }}</div>
+                </div>
+                {% endif %}
+
+                <!-- Ringkasan & meta -->
+                <div class="card-body pb-0">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-muted text-xs text-uppercase mb-1">Tanggal Opname</div>
+                            <div class="text-sm font-weight-bold">{{ doc.opname_date|date:'d F Y' }}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted text-xs text-uppercase mb-1">Gudang</div>
+                            <div class="text-sm font-weight-bold">{{ doc.warehouse.code }} — {{ doc.warehouse.name }}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted text-xs text-uppercase mb-1">Dibuat Oleh</div>
+                            <div class="text-sm font-weight-bold">{{ doc.created_by }}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted text-xs text-uppercase mb-1">Dihitung / Disetujui</div>
+                            <div class="text-sm font-weight-bold">{{ doc.counted_by|default:'-' }} / {{ doc.approved_by|default:'-' }}</div>
+                        </div>
+                    </div>
+                    {% if doc.notes %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="text-muted text-xs text-uppercase mb-1">Catatan</div>
+                            <div class="text-sm">{{ doc.notes }}</div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Modal Submit -->
+                <div class="modal fade" id="modal-submit" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <form method="post" action="{% url 'opname-submit' doc.pk %}">
+                            {% csrf_token %}
+                            <div class="modal-content">
+                                <div class="modal-header"><h5 class="modal-title">Konfirmasi Submit</h5></div>
+                                <div class="modal-body border-bottom-0">Submit sesi <strong>{{ doc.number }}</strong>? Hasil hitung akan <strong>dikunci</strong> dan menunggu persetujuan supervisor.</div>
+                                <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Batal</button>
+                                    <button type="submit" class="btn btn-sm bg-gradient-primary text-white">Submit</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Modal Approve -->
+                <div class="modal fade" id="modal-approve" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <form method="post" action="{% url 'opname-approve' doc.pk %}">
+                            {% csrf_token %}
+                            <div class="modal-content">
+                                <div class="modal-header"><h5 class="modal-title">Konfirmasi Persetujuan</h5></div>
+                                <div class="modal-body border-bottom-0">Setujui sesi <strong>{{ doc.number }}</strong>? Setelah disetujui, selisih dapat diposting ke saldo stok.</div>
+                                <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Batal</button>
+                                    <button type="submit" class="btn btn-sm bg-gradient-success text-white">Setujui</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Modal Reject -->
+                <div class="modal fade" id="modal-reject" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <form method="post" action="{% url 'opname-reject' doc.pk %}">
+                            {% csrf_token %}
+                            <div class="modal-content">
+                                <div class="modal-header"><h5 class="modal-title">Tolak Sesi Opname</h5></div>
+                                <div class="modal-body border-bottom-0">
+                                    <label class="text-muted text-xs">Alasan penolakan <span class="text-danger">*</span></label>
+                                    <textarea name="reason" class="form-control form-control-sm" rows="3" required></textarea>
+                                </div>
+                                <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Batal</button>
+                                    <button type="submit" class="btn btn-sm bg-gradient-warning text-white">Tolak</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Modal Cancel -->
+                <div class="modal fade" id="modal-cancel" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <form method="post" action="{% url 'opname-cancel' doc.pk %}">
+                            {% csrf_token %}
+                            <div class="modal-content">
+                                <div class="modal-header"><h5 class="modal-title">Batalkan Sesi Opname</h5></div>
+                                <div class="modal-body border-bottom-0">
+                                    <label class="text-muted text-xs">Alasan pembatalan <span class="text-danger">*</span></label>
+                                    <textarea name="reason" class="form-control form-control-sm" rows="3" required></textarea>
+                                </div>
+                                <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Batal</button>
+                                    <button type="submit" class="btn btn-sm bg-gradient-danger text-white">Batalkan</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Modal Post -->
+                <div class="modal fade" id="modal-post" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <form method="post" action="{% url 'opname-post' doc.pk %}">
+                            {% csrf_token %}
+                            <div class="modal-content">
+                                <div class="modal-header"><h5 class="modal-title">Post Hasil Opname</h5></div>
+                                <div class="modal-body border-bottom-0">
+                                    <p class="text-sm mb-2">Posting akan membuat <strong>penyesuaian stok</strong> sebanyak
+                                    <strong>{{ doc.difference_lines|length }}</strong> baris ke saldo gudang
+                                    <strong>{{ doc.warehouse.code }}</strong>. Tindakan ini bersifat final dan tidak dapat dibatalkan.</p>
+                                    {% if changed_lines %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="confirm_balance_change" value="1" id="chk-balance-change">
+                                        <label class="form-check-label text-sm" for="chk-balance-change">
+                                            Saya memahami bahwa saldo sistem berubah selama sesi opname dan menyetujui
+                                            penyesuaian dihitung terhadap saldo terbaru.
+                                        </label>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-sm bg-gradient-secondary" data-bs-dismiss="modal">Batal</button>
+                                    <button type="submit" class="btn btn-sm bg-gradient-success text-white">Post</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: Detail hasil hitung -->
+            <div class="card mt-2">
+                <div class="card-header mb-4">
+                    <div class="row">
+                        <div class="col-6 d-flex align-items-center">
+                            <h5 class="mb-0">Detail Hasil Hitung</h5>
+                        </div>
+                        <div class="col-6 text-end">
+                            <span class="text-sm text-muted">Total selisih: <strong>{{ doc.total_difference|qty }}</strong></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body px-0 pt-0 pb-2">
+                    <div class="table-responsive p-0">
+                        <table class="table hover align-items-center mb-0" id="opn-detail-table">
+                            <thead>
+                                <tr>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-4">Lokasi</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Barang</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-end">Qty Sistem</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-end">Qty Fisik</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-end">Selisih</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-4">Catatan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for l in lines %}
+                                <tr>
+                                    <td class="ps-4"><h6 class="mb-0 text-sm">{{ l.location.code }}</h6></td>
+                                    <td>
+                                        <h6 class="mb-0 text-sm">{{ l.item.sku }} — {{ l.item.name }}</h6>
+                                        {% if l.balance_changed %}
+                                        <span class="badge bg-gradient-warning">Saldo berubah</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end"><span class="text-sm">{{ l.system_qty|qty }}</span></td>
+                                    <td class="text-end"><span class="text-sm font-weight-bold">{{ l.counted_qty|qty|default:'-' }}</span></td>
+                                    <td class="text-end">
+                                        {% if l.difference > 0 %}
+                                        <span class="text-sm text-info font-weight-bold">+{{ l.difference|qty }}</span>
+                                        {% elif l.difference < 0 %}
+                                        <span class="text-sm text-danger font-weight-bold">{{ l.difference|qty }}</span>
+                                        {% else %}
+                                        <span class="text-sm text-success">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="ps-4"><span class="text-sm">{{ l.notes|default:'-' }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th class="ps-4 text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Total</th>
+                                    <th></th>
+                                    <th class="text-end text-sm font-weight-bold">{{ doc.total_system|qty }}</th>
+                                    <th class="text-end text-sm font-weight-bold">{{ doc.total_counted|qty }}</th>
+                                    <th class="text-end text-sm font-weight-bold">{{ doc.total_difference|qty }}</th>
+                                    <th class="ps-4"></th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block javascripts %}
+<script>
+    $(document).ready( function () {
+        $('#opn-detail-table').DataTable({
+            'language': {
+                'search': 'Cari: ',
+                'info': 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+                'lengthMenu': 'Tampilkan _MENU_ data',
+                'infoEmpty': '',
+                'emptyTable': 'Belum ada baris hasil hitung.',
+                'zeroRecords': 'Tidak ada data',
+                'paginate': { 'next': 'Selanjutnya', 'previous': 'Sebelumnya' }
+            }
+        });
+
+        // Tombol Kembali mengikuti daftar asal (mis. ?status=approved dari dashboard)
+        var btnBack = document.getElementById('btn-back');
+        if (btnBack) {
+            var backQuery = '';
+            try { backQuery = sessionStorage.getItem('opn-back-query') || ''; } catch (e) {}
+            btnBack.setAttribute('href', '{% url "opname-index" %}' + backQuery);
+        }
+    });
+</script>
+{% endblock javascripts %}

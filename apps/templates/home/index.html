@@ -246,13 +246,15 @@
         <div class="card-body px-4 pb-3 pt-2">
           <p class="text-sm text-secondary mb-2">
             Operasi gudang berikutnya akan muncul di sini: Pengeluaran, Transfer,
-            Penyesuaian, Stock Opname, dan Laporan.
+            Penyesuaian, dan Laporan.
           </p>
+          <a href="{% url 'opname-index' %}" class="text-decoration-none">
+            <span class="badge bg-gradient-success me-1">Opname ✓</span>
+          </a>
           <span class="badge bg-gradient-success me-1">Penerimaan ✓</span>
           <span class="badge bg-gradient-secondary me-1">Pengeluaran</span>
           <span class="badge bg-gradient-secondary me-1">Transfer</span>
           <span class="badge bg-gradient-secondary me-1">Penyesuaian</span>
-          <span class="badge bg-gradient-secondary me-1">Opname</span>
           <span class="badge bg-gradient-secondary">Laporan</span>
         </div>
       </div>

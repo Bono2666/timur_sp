@@ -1,0 +1,98 @@
+{% extends 'layouts/base.html' %}
+{% load apps_tags %}
+
+{% block title %} Stock Opname {% endblock title %}
+
+{% block content %}
+
+<div class="container-fluid py-0">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4 p-4">
+                <div class="row mb-4">
+                    <div class="col-6 d-flex align-items-center">
+                        <h4 class="mb-0">Stock Opname</h4>
+                    </div>
+                    <div class="col-6 text-end">
+                        <a class="btn btn-sm bg-gradient-primary mb-0 {% if not btn.add and not request.user.is_superuser %}disabled{% endif %}" href="{% url 'opname-add' %}"><i class="fas fa-plus"></i>&nbsp;&nbsp;Buat Opname</a>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <form method="get" class="d-flex gap-2">
+                            <select name="status" class="form-control form-select-sm" onchange="this.form.submit()">
+                                <option value="">Semua Status</option>
+                                <option value="not_posted" {% if filter_status == 'not_posted' %}selected{% endif %}>Belum Diposting</option>
+                                <option value="pending_approval" {% if filter_status == 'pending_approval' %}selected{% endif %}>Menunggu Persetujuan</option>
+                                <option value="approved" {% if filter_status == 'approved' %}selected{% endif %}>Disetujui</option>
+                                <option value="done" {% if filter_status == 'done' %}selected{% endif %}>Selesai</option>
+                                <option value="cancelled" {% if filter_status == 'cancelled' %}selected{% endif %}>Dibatalkan</option>
+                            </select>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card-body px-0 pt-0 pb-2">
+                    <div class="table-responsive p-0">
+                        <table class="table hover align-items-center mb-0" id="myTable">
+                            <thead>
+                                <tr>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Nomor</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Tanggal Opname</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Gudang</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Baris</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Selisih</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for d in data %}
+                                <tr data-href="{% url 'opname-view' d.pk %}" class="cursor-pointer">
+                                    <td><h6 class="mb-0 text-sm">{{ d.number }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ d.opname_date|date:'d/m/Y' }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ d.warehouse.code }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ d.lines.all|length }}</h6></td>
+                                    <td><h6 class="mb-0 text-sm">{{ d.total_difference|qty }}</h6></td>
+                                    <td>
+                                        <span class="badge {{ d.status_css }}">{{ d.status_label }}</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block javascripts %}
+
+<script>
+    $(document).ready( function () {
+        $('#myTable').DataTable({
+            'language': {
+                'search': 'Cari: ',
+                'info': 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+                'lengthMenu': 'Tampilkan _MENU_ data',
+                'infoEmpty': '',
+                'emptyTable': 'Belum ada sesi stock opname.',
+                'zeroRecords': 'Tidak ada data',
+                'paginate': { 'next': 'Selanjutnya', 'previous': 'Sebelumnya' }
+            }
+        });
+
+        // Simpan query daftar (dipakai tombol Kembali di halaman detail)
+        try { sessionStorage.setItem('opn-back-query', location.search || ''); } catch (e) {}
+
+        // Klik baris -> halaman detail sesi opname
+        $('#myTable tbody').on('click', 'tr[data-href]', function () {
+            window.location = $(this).data('href');
+        });
+    });
+</script>
+{% endblock javascripts %}

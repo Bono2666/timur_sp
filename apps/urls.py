@@ -117,4 +117,22 @@ urlpatterns = [
          views.receipt_validate, name='receipt-validate'),
     path('warehouse/receipt/<int:_id>/putaway/',
          views.receipt_putaway, name='receipt-putaway'),
+
+    # Pengelolaan: Stock Opname
+    path('warehouse/opname/', views.opname_index, name='opname-index'),
+    path('warehouse/opname/add/', views.opname_add, name='opname-add'),
+    path('warehouse/opname/edit/<int:_id>/',
+         views.opname_edit, name='opname-edit'),
+    path('warehouse/opname/<int:_id>/',
+         views.opname_view, name='opname-view'),
+    path('warehouse/opname/<int:_id>/submit/',
+         views.opname_submit, name='opname-submit'),
+    path('warehouse/opname/<int:_id>/approve/',
+         views.opname_approve, name='opname-approve'),
+    path('warehouse/opname/<int:_id>/reject/',
+         views.opname_reject, name='opname-reject'),
+    path('warehouse/opname/<int:_id>/cancel/',
+         views.opname_cancel, name='opname-cancel'),
+    path('warehouse/opname/<int:_id>/post/',
+         views.opname_post, name='opname-post'),
 ]

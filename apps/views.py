@@ -1529,3 +1529,423 @@ def receipt_putaway(request, _id):
     if errors:
         ctx['message'] = errors
     return render(request, 'home/receipt_putaway.html', ctx)
+
+
+# ==================================================================
+# Pengelolaan Stok — Stock Opname (Fase 3)
+# ==================================================================
+def _octx(request, crud, **extra):
+    """Context dasar halaman Stock Opname (grup Pengelolaan)."""
+    ctx = {
+        'segment': 'opname',
+        'group_segment': 'management',
+        'crud': crud,
+        'role': Auth.objects.filter(user_id=request.user.user_id).values_list(
+            'menu_id', flat=True),
+        'btn': Auth.objects.filter(
+            user_id=request.user.user_id, menu_id='OPN').first()
+        if not request.user.is_superuser else Auth.objects.all(),
+    }
+    ctx.update(extra)
+    return ctx
+
+
+def _opname_balance_rows(warehouse, existing=None):
+    """Seluruh baris saldo gudang menjadi lembar hitung opname.
+
+    `existing` (opsional) = {(item_id, location_id): StockOpnameLine} untuk
+    mengisi ulang hasil hitung saat mengubah sesi Draft.
+    """
+    existing = existing or {}
+    rows = list(StockBalance.objects.filter(
+        warehouse=warehouse).select_related(
+            'item', 'item__uom', 'location').order_by(
+                'location__code', 'item__sku'))
+    for bal in rows:
+        line = existing.get((bal.item_id, bal.location_id))
+        bal.counted_prefill = line.counted_qty if line else None
+        bal.note_prefill = (line.notes or '') if line else ''
+    return rows
+
+
+def _opname_lines_with_balance(doc):
+    """Baris opname + saldo terkini yang diambil massal (FR-COUNT-04)."""
+    lines = list(doc.lines.select_related('item', 'location'))
+    item_ids = {l.item_id for l in lines}
+    loc_ids = {l.location_id for l in lines}
+    current = {}
+    if item_ids and loc_ids:
+        current = {
+            (b.item_id, b.location_id): b.on_hand
+            for b in StockBalance.objects.filter(
+                item__in=item_ids, location__in=loc_ids)
+        }
+    for line in lines:
+        line._current_balance = current.get((line.item_id, line.location_id),
+                                            Decimal('0'))
+    return lines
+
+
+def _parse_opname_lines(rows, post):
+    """Parse lembar hitung: baris kosong = tidak dihitung (dilewati).
+
+    Setiap baris membawa pk saldo (o_balance) sehingga parsing tidak
+    bergantung pada urutan POST.
+    """
+    by_id = {b.pk: b for b in rows}
+    lines, errors = [], []
+    balance_ids = post.getlist('o_balance')
+    counted_l = post.getlist('o_counted')
+    note_l = post.getlist('o_note')
+
+    def dec(raw):
+        raw = (raw or '').strip().replace(',', '')
+        return Decimal(raw)
+
+    for i, raw_id in enumerate(balance_ids):
+        try:
+            bal = by_id[int(raw_id)]
+        except (KeyError, ValueError, TypeError):
+            errors.append('Baris %d: saldo tidak dikenal, muat ulang lembar hitung.'
+                          % (i + 1))
+            continue
+        raw = counted_l[i] if i < len(counted_l) else ''
+        note = (note_l[i] if i < len(note_l) else '').strip()
+        if (raw or '').strip() == '':
+            continue  # tidak dihitung
+        try:
+            counted = dec(raw)
+        except Exception:
+            errors.append('Baris %d (%s): kuantitas tidak valid.'
+                          % (i + 1, bal.item.sku))
+            continue
+        if counted < 0:
+            errors.append('Baris %d (%s): kuantitas tidak boleh negatif.'
+                          % (i + 1, bal.item.sku))
+            continue
+        if counted != counted.to_integral_value():
+            errors.append('Baris %d (%s): kuantitas harus bilangan bulat.'
+                          % (i + 1, bal.item.sku))
+            continue
+        lines.append((bal.item, bal.location, bal.on_hand, counted, note))
+    return lines, errors
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='OPN')
+def opname_index(request):
+    status = request.GET.get('status', '')
+    data = StockOpname.objects.select_related(
+        'warehouse').prefetch_related('lines')
+    status_filters = {
+        'not_posted': Q(status__in=['draft', 'submitted', 'approved']),
+        'pending_approval': Q(status__in=['draft', 'submitted']),
+        'approved': Q(status='approved'),
+        'done': Q(status='posted'),
+        'cancelled': Q(status='cancelled'),
+    }
+    if status in status_filters:
+        data = data.filter(status_filters[status])
+    return render(request, 'home/opname_index.html', _octx(
+        request, 'index', data=data, filter_status=status))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='OPN')
+def opname_add(request):
+    """Buat sesi opname.
+
+    Tahap 1: pilih Tanggal Opname + Gudang, lalu "Muat Lembar Hitung".
+    Tahap 2: masukkan hasil hitung fisik per baris saldo gudang tsb.
+    """
+    warehouses = Warehouse.objects.filter(is_active=True).order_by('code')
+    stage = (request.POST.get('stage', '') if request.POST else '')
+    today = timezone.now().date()
+
+    if stage in ('sheet', 'save'):
+        form = FormOpname(request.POST)
+        if not form.is_valid():
+            return render(request, 'home/opname_add.html', _octx(
+                request, 'add', form=form, message=form.errors,
+                stage='', warehouses=warehouses))
+        warehouse = form.cleaned_data['warehouse']
+        rows = _opname_balance_rows(warehouse)
+        if not rows:
+            return render(request, 'home/opname_add.html', _octx(
+                request, 'add', form=form, stage='', warehouses=warehouses,
+                message=['Gudang %s belum memiliki saldo stok untuk diopname.'
+                         % warehouse.code]))
+
+        if stage == 'save':
+            lines, errors = _parse_opname_lines(rows, request.POST)
+            if errors:
+                return render(request, 'home/opname_add.html', _octx(
+                    request, 'add', form=form, message=errors, stage='sheet',
+                    sheet_rows=rows, sheet_warehouse=warehouse,
+                    warehouses=warehouses))
+            if not lines:
+                return render(request, 'home/opname_add.html', _octx(
+                    request, 'add', form=form, stage='sheet', sheet_rows=rows,
+                    sheet_warehouse=warehouse, warehouses=warehouses,
+                    message=['Minimal satu baris harus diisi hasil hitungnya.']))
+            # FR-COUNT-06: cegah overlap sesi aktif pada gudang yang sama
+            if StockOpname.objects.filter(
+                    warehouse=warehouse,
+                    status__in=['draft', 'submitted', 'approved']).exists():
+                return render(request, 'home/opname_add.html', _octx(
+                    request, 'add', form=form, stage='sheet', sheet_rows=rows,
+                    sheet_warehouse=warehouse, warehouses=warehouses,
+                    message=['Gudang ini masih memiliki sesi opname aktif. '
+                             'Selesaikan atau batalkan sesi tersebut dahulu.']))
+            with transaction.atomic():
+                opn = form.save(commit=False)
+                opn.number = DocumentSequence.next_number_for('OPN')
+                opn.created_by = request.user.user_id
+                opn.status = 'draft'
+                opn.save()
+                StockOpnameLine.objects.bulk_create([
+                    StockOpnameLine(
+                        opname=opn, item=item, location=location,
+                        system_qty=system_qty, counted_qty=counted,
+                        notes=note or None)
+                    for item, location, system_qty, counted, note in lines])
+            return HttpResponseRedirect(reverse('opname-view', args=[opn.pk]))
+
+        return render(request, 'home/opname_add.html', _octx(
+            request, 'add', form=form, stage='sheet', sheet_rows=rows,
+            sheet_warehouse=warehouse, warehouses=warehouses))
+
+    form = FormOpname(initial={'opname_date': today})
+    return render(request, 'home/opname_add.html', _octx(
+        request, 'add', form=form, stage='', warehouses=warehouses))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='OPN')
+def opname_edit(request, _id):
+    """Ubah hasil hitung sesi Draft (hasil dikunci setelah submit)."""
+    opn = get_object_or_404(StockOpname, pk=_id)
+    if opn.status != 'draft':
+        return HttpResponseRedirect(reverse('opname-view', args=[_id]))
+    warehouses = Warehouse.objects.filter(is_active=True).order_by('code')
+    existing = {
+        (l.item_id, l.location_id): l
+        for l in opn.lines.select_related('item', 'location')
+    }
+    rows = _opname_balance_rows(opn.warehouse, existing)
+
+    if request.POST:
+        form = FormOpname(request.POST, instance=opn)
+        if not form.is_valid():
+            return render(request, 'home/opname_add.html', _octx(
+                request, 'update', form=form, message=form.errors,
+                stage='sheet', sheet_rows=rows, sheet_warehouse=opn.warehouse,
+                edit_opn=opn, warehouses=warehouses))
+        if form.cleaned_data['warehouse'] != opn.warehouse:
+            rows = _opname_balance_rows(form.cleaned_data['warehouse'])
+        lines, errors = _parse_opname_lines(rows, request.POST)
+        if errors:
+            return render(request, 'home/opname_add.html', _octx(
+                request, 'update', form=form, message=errors, stage='sheet',
+                sheet_rows=rows, sheet_warehouse=opn.warehouse,
+                edit_opn=opn, warehouses=warehouses))
+        with transaction.atomic():
+            opn = form.save()
+            opn.lines.all().delete()
+            StockOpnameLine.objects.bulk_create([
+                StockOpnameLine(
+                    opname=opn, item=item, location=location,
+                    system_qty=system_qty, counted_qty=counted,
+                    notes=note or None)
+                for item, location, system_qty, counted, note in lines])
+        return HttpResponseRedirect(reverse('opname-view', args=[opn.pk]))
+
+    return render(request, 'home/opname_add.html', _octx(
+        request, 'update', form=FormOpname(instance=opn), stage='sheet',
+        sheet_rows=rows, sheet_warehouse=opn.warehouse, edit_opn=opn,
+        warehouses=warehouses))
+
+
+def _render_opname_view(request, opn, error=None, message=None):
+    lines = _opname_lines_with_balance(opn)
+    # FR-COUNT-04: peringatkan bila saldo berubah selama sesi berjalan
+    changed_lines = [l for l in lines if l.balance_changed]
+    return render(request, 'home/opname_view.html', _octx(
+        request, 'view', doc=opn, lines=lines, changed_lines=changed_lines,
+        error=error, message=message))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='OPN')
+def opname_view(request, _id):
+    opn = get_object_or_404(StockOpname, pk=_id)
+    return _render_opname_view(request, opn)
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='OPN')
+def opname_submit(request, _id):
+    """Kunci hasil hitung (FR-COUNT-03)."""
+    if request.method != 'POST':
+        return HttpResponseRedirect(reverse('opname-view', args=[_id]))
+    with transaction.atomic():
+        opn = StockOpname.objects.select_for_update().get(pk=_id)
+        if opn.status != 'draft':
+            return _render_opname_view(
+                request, opn, error='Hanya sesi Draft yang dapat di-submit.')
+        if not opn.lines.exists():
+            return _render_opname_view(
+                request, opn, error='Sesi opname belum memiliki baris hasil hitung.')
+        opn.status = 'submitted'
+        opn.counted_by = request.user.user_id
+        opn.counted_at = timezone.now()
+        opn.reject_reason = None
+        opn.save()
+    return HttpResponseRedirect(reverse('opname-view', args=[_id]))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='OPN')
+def opname_approve(request, _id):
+    if request.method != 'POST':
+        return HttpResponseRedirect(reverse('opname-view', args=[_id]))
+    with transaction.atomic():
+        opn = StockOpname.objects.select_for_update().get(pk=_id)
+        if opn.status != 'submitted':
+            return _render_opname_view(
+                request, opn, error='Hanya sesi Submitted yang dapat disetujui.')
+        if opn.created_by == request.user.user_id and not request.user.is_superuser:
+            return _render_opname_view(
+                request, opn,
+                error='Anda tidak dapat menyetujui sesi yang Anda buat sendiri '
+                      '(segregation of duties).')
+        opn.status = 'approved'
+        opn.approved_by = request.user.user_id
+        opn.approved_at = timezone.now()
+        opn.save()
+    return HttpResponseRedirect(reverse('opname-view', args=[_id]))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='OPN')
+def opname_reject(request, _id):
+    if request.method != 'POST':
+        return HttpResponseRedirect(reverse('opname-view', args=[_id]))
+    reason = (request.POST.get('reason') or '').strip()
+    with transaction.atomic():
+        opn = StockOpname.objects.select_for_update().get(pk=_id)
+        if opn.status != 'submitted':
+            return _render_opname_view(
+                request, opn, error='Hanya sesi Submitted yang dapat ditolak.')
+        if not reason:
+            return _render_opname_view(
+                request, opn, error='Alasan penolakan wajib diisi.')
+        opn.status = 'draft'
+        opn.reject_reason = reason
+        opn.counted_by = None
+        opn.counted_at = None
+        opn.save()
+    return HttpResponseRedirect(reverse('opname-view', args=[_id]))
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='OPN')
+def opname_cancel(request, _id):
+    if request.method != 'POST':
+        return HttpResponseRedirect(reverse('opname-view', args=[_id]))
+    reason = (request.POST.get('reason') or '').strip()
+    with transaction.atomic():
+        opn = StockOpname.objects.select_for_update().get(pk=_id)
+        if opn.status != 'draft':
+            return _render_opname_view(
+                request, opn, error='Hanya sesi Draft yang dapat dibatalkan.')
+        if not reason:
+            return _render_opname_view(
+                request, opn, error='Alasan pembatalan wajib diisi.')
+        opn.status = 'cancelled'
+        opn.cancel_reason = reason
+        opn.save()
+    return HttpResponseRedirect(reverse('opname-view', args=[_id]))
+
+
+def _post_opname(_opname_id, actor):
+    """Posting sesi opname: sesuaikan saldo lewat ledger, bukan overwrite.
+
+    FR-COUNT-04: delta dihitung terhadap saldo TERKINI, bukan snapshot.
+    FR-COUNT-05: menghasilkan baris ledger adjustment.
+    FR-COUNT-06: di bawah lock, tidak dapat diposting dua kali.
+    """
+    with transaction.atomic():
+        opn = StockOpname.objects.select_for_update().get(pk=_opname_id)
+        if opn.status != 'approved':
+            raise ValueError('Hanya sesi yang sudah Disetujui yang dapat diposting.')
+        lines = _opname_lines_with_balance(opn)
+        if not lines:
+            raise ValueError('Sesi opname tidak memiliki baris hasil hitung.')
+
+        now = timezone.now()
+        adjustments = []
+        for line in lines:
+            delta = line.posting_difference
+            if delta == 0:
+                continue
+            balance = StockBalance.objects.select_for_update().filter(
+                item=line.item, location=line.location).first()
+            if balance is None:
+                if delta < 0:
+                    raise ValueError(
+                        'Saldo %s @%s tidak ditemukan; pengurangan tidak dapat '
+                        'diposting.' % (line.item.sku, line.location.code))
+                balance = StockBalance.objects.create(
+                    item=line.item, warehouse=opn.warehouse,
+                    location=line.location, on_hand=Decimal('0'),
+                    reserved=Decimal('0'))
+            new_on_hand = balance.on_hand + delta
+            if new_on_hand < 0:
+                raise ValueError(
+                    'Stok %s @%s akan menjadi negatif (%s); periksa kembali '
+                    'hasil hitung.' % (line.item.sku, line.location.code,
+                                       format(new_on_hand, 'f')))
+            balance.on_hand = new_on_hand
+            balance.save(update_fields=['on_hand'])
+            adjustments.append((line, delta))
+
+            StockLedger.objects.create(
+                item=line.item, warehouse=opn.warehouse, location=line.location,
+                quantity=abs(delta),
+                move_type='IN' if delta > 0 else 'OUT',
+                reference=opn.number,
+                notes='Penyesuaian stock opname %s (%s)' % (
+                    opn.number, opn.opname_date),
+                actor=actor, posted_at=now)
+
+        if not adjustments:
+            raise ValueError(
+                'Tidak ada selisih untuk diposting; semua hasil hitung sama '
+                'dengan saldo sistem.')
+        opn.status = 'posted'
+        opn.posted_at = now
+        opn.save()
+    return opn
+
+
+@login_required(login_url='/login/')
+@role_required(allowed_roles='OPN')
+def opname_post(request, _id):
+    if request.method != 'POST':
+        return HttpResponseRedirect(reverse('opname-view', args=[_id]))
+    opn = get_object_or_404(StockOpname, pk=_id)
+    # FR-COUNT-04: perubahan saldo selama opname wajib dikonfirmasi ulang
+    if opn.status == 'approved' and opn.lines.exists():
+        changed = any(l.balance_changed
+                      for l in _opname_lines_with_balance(opn))
+        if changed and request.POST.get('confirm_balance_change') != '1':
+            return _render_opname_view(
+                request, opn,
+                error='Saldo sistem berubah selama sesi opname berlangsung. '
+                      'Periksa kembali hasil hitung dan konfirmasi sebelum posting.')
+    try:
+        _post_opname(_opname_id=_id, actor=request.user.user_id)
+    except ValueError as e:
+        return _render_opname_view(request, opn, error=str(e))
+    return HttpResponseRedirect(reverse('opname-view', args=[_id]))

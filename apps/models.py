@@ -606,3 +606,166 @@ class StockDocumentLine(models.Model):
 
     def __str__(self):
         return '%s x%s' % (self.item.sku, self.quantity)
+
+
+# ==================================================================
+# Pengelolaan Stok — Stock Opname (Fase 3)
+# ==================================================================
+class StockOpname(models.Model):
+    """Sesi Stock Opname per gudang (FR-COUNT-01..06).
+
+    Alur: draft -> submitted -> approved -> posted.
+    Hasil hitung dikunci saat submit; supervisor approve; posting menyesuaikan
+    saldo lewat ledger (bukan overwrite langsung).
+    """
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('submitted', 'Menunggu Persetujuan'),
+        ('approved', 'Disetujui'),
+        ('posted', 'Posted'),
+        ('cancelled', 'Dibatalkan'),
+    ]
+    number = models.CharField(max_length=30, unique=True)
+    opname_date = models.DateField(help_text='Tanggal pelaksanaan opname.')
+    warehouse = models.ForeignKey(
+        Warehouse, on_delete=models.PROTECT, related_name='opnames')
+    notes = models.CharField(max_length=255, null=True, blank=True)
+    status = models.CharField(
+        max_length=12, choices=STATUS_CHOICES, default='draft')
+    # Kunci hasil hitung setelah submit (FR-COUNT-03)
+    counted_at = models.DateTimeField(null=True, blank=True)
+    counted_by = models.CharField(max_length=50, null=True, blank=True)
+    approved_by = models.CharField(max_length=50, null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    posted_at = models.DateTimeField(null=True, blank=True)
+    reject_reason = models.CharField(max_length=255, null=True, blank=True)
+    cancel_reason = models.CharField(max_length=255, null=True, blank=True)
+    created_by = models.CharField(max_length=50)
+    entry_date = models.DateTimeField(null=True)
+    entry_by = models.CharField(max_length=50, null=True)
+    update_date = models.DateTimeField(null=True)
+    update_by = models.CharField(max_length=50, null=True)
+
+    class Meta:
+        verbose_name = 'Stock Opname'
+        verbose_name_plural = 'Stock Opname'
+        ordering = ['-opname_date', '-id']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['opname_date']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.entry_date:
+            self.entry_date = timezone.now()
+            self.entry_by = _current_username()
+        self.update_date = timezone.now()
+        self.update_by = _current_username()
+        super(StockOpname, self).save(*args, **kwargs)
+
+    @property
+    def is_locked(self):
+        """Sesi terkunci: hasil hitung tidak boleh diubah lagi (FR-COUNT-03)."""
+        return self.status in ('submitted', 'approved', 'posted')
+
+    @property
+    def total_system(self):
+        return sum((l.system_qty for l in self.lines.all()), Decimal('0'))
+
+    @property
+    def total_counted(self):
+        return sum((l.counted_qty for l in self.lines.all()), Decimal('0'))
+
+    @property
+    def total_difference(self):
+        return sum((l.difference for l in self.lines.all()), Decimal('0'))
+
+    @property
+    def difference_lines(self):
+        """Baris yang selisihnya tidak nol (perlu investigasi)."""
+        return [l for l in self.lines.all() if l.difference != 0]
+
+    # Badge status — SATU sumber untuk semua halaman (konsisten dengan RCV)
+    STATUS_LABELS = {
+        'draft': ('Draft', 'bg-gradient-secondary'),
+        'submitted': ('Menunggu Persetujuan', 'bg-gradient-primary'),
+        'approved': ('Disetujui', 'bg-gradient-info'),
+        'posted': ('Selesai', 'bg-gradient-success'),
+        'cancelled': ('Dibatalkan', 'bg-gradient-danger'),
+    }
+
+    @property
+    def status_label(self):
+        return self.STATUS_LABELS[self.status][0]
+
+    @property
+    def status_css(self):
+        return self.STATUS_LABELS[self.status][1]
+
+    def __str__(self):
+        return self.number
+
+
+class StockOpnameLine(models.Model):
+    """Baris hasil hitung fisik per item+lokasi, dengan snapshot qty sistem."""
+    opname = models.ForeignKey(
+        StockOpname, on_delete=models.CASCADE, related_name='lines')
+    item = models.ForeignKey(Item, on_delete=models.PROTECT,
+                             related_name='opname_lines')
+    location = models.ForeignKey(
+        StorageLocation, on_delete=models.PROTECT, related_name='+')
+    system_qty = models.DecimalField(
+        max_digits=18, decimal_places=4,
+        help_text='Snapshot saldo sistem saat sesi dibuat.')
+    counted_qty = models.DecimalField(
+        max_digits=18, decimal_places=4, null=True, blank=True,
+        help_text='Hasil hitung fisik. Kosong = tidak dihitung.')
+    notes = models.CharField(max_length=255, null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Baris Opname'
+        verbose_name_plural = 'Baris Opname'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['opname', 'item', 'location'],
+                name='unique_opname_item_location')
+        ]
+
+    @property
+    def effective_counted(self):
+        """Qty fisik yang dipakai: hasil hitung, atau snapshot bila tidak dihitung."""
+        if self.counted_qty is None:
+            return self.system_qty
+        return self.counted_qty
+
+    @property
+    def difference(self):
+        """Selisih terhadap snapshot sistem."""
+        return (self.effective_counted or Decimal('0')) - (
+            self.system_qty or Decimal('0'))
+
+    @property
+    def current_balance(self):
+        """Saldo sistem TERKINI (bukan snapshot) — untuk deteksi mutasi selama opname.
+
+        View dapat mengisi `_current_balance` secara massal agar tidak N+1.
+        """
+        if hasattr(self, '_current_balance'):
+            return self._current_balance
+        balance = StockBalance.objects.filter(
+            item=self.item, location=self.location).first()
+        return balance.on_hand if balance else Decimal('0')
+
+    @property
+    def posting_difference(self):
+        """Delta yang benar-benar diposting: terhadap saldo terbaru (FR-COUNT-04)."""
+        return (self.effective_counted or Decimal('0')) - self.current_balance
+
+    @property
+    def balance_changed(self):
+        """True bila saldo berubah selama sesi opname berjalan (FR-COUNT-04)."""
+        return self.current_balance != (self.system_qty or Decimal('0'))
+
+    def __str__(self):
+        return '%s hitung %s (sistem %s)' % (
+            self.item.sku, self.counted_qty, self.system_qty)

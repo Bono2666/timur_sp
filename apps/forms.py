@@ -578,3 +578,37 @@ class FormReceipt(ModelForm):
         model = StockDocument
         fields = ['warehouse', 'partner', 'reference', 'document_date',
                   'operation_type', 'receiving_location', 'notes']
+
+
+class FormOpname(ModelForm):
+    """Header sesi Stock Opname.
+
+    Tahap 1 memilih tanggal + gudang; tahap 2 memuat saldo stok gudang
+    tersebut sebagai lembar hitung (baris detail dikirim sebagai array POST,
+    sama seperti penerimaan).
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(FormOpname, self).__init__(*args, **kwargs)
+        self.label_suffix = ''
+        self.fields['opname_date'].label = 'Tanggal Opname'
+        self.fields['warehouse'].label = 'Gudang'
+        self.fields['notes'].label = 'Catatan'
+        self.fields['warehouse'].widget.attrs.update(
+            {'class': 'form-control form-select-sm'})
+        self.fields['opname_date'].widget = forms.DateInput(
+            {'class': 'form-control-sm', 'type': 'date'})
+        self.fields['notes'].widget = forms.TextInput(
+            {'class': 'form-control-sm'})
+        self.fields['notes'].required = False
+
+    def clean_opname_date(self):
+        opname_date = self.cleaned_data['opname_date']
+        if opname_date > timezone.now().date():
+            raise forms.ValidationError(
+                'Tanggal opname tidak boleh melebihi hari ini.')
+        return opname_date
+
+    class Meta:
+        model = StockOpname
+        fields = ['opname_date', 'warehouse', 'notes']

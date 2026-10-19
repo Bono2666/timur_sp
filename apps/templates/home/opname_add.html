@@ -1,0 +1,161 @@
+{% extends 'layouts/base.html' %}
+{% load apps_tags %}
+
+{% block title %}{% if edit_opn %}Ubah{% else %}Buat{% endif %} Stock Opname {% endblock title %}
+
+{% block content %}
+
+<div class="container-fluid mt-0">
+    <div class="row">
+        <div class="col-xl-12 order-xl-1">
+            <form action="{% if edit_opn %}{% url 'opname-edit' edit_opn.pk %}{% else %}{% url 'opname-add' %}{% endif %}" method="post">
+                {% csrf_token %}
+                <div class="card">
+                    <div class="card-header">
+                        <div class="row">
+                            <div class="col-6 d-flex align-items-center">
+                                <h4 class="mb-2">{% if edit_opn %}Ubah{% else %}Buat{% endif %} Stock Opname</h4>
+                            </div>
+                            <div class="col-6 text-end">
+                                {% if stage == 'sheet' %}
+                                <button type="submit" name="stage" value="save" class="btn btn-sm bg-gradient-primary mb-0"><i class="fas fa-save"></i>&nbsp;&nbsp;Simpan sebagai Draft</button>
+                                {% else %}
+                                <button type="submit" name="stage" value="sheet" class="btn btn-sm bg-gradient-primary mb-0"><i class="fas fa-clipboard-list"></i>&nbsp;&nbsp;Muat Lembar Hitung</button>
+                                {% endif %}
+                                <a href="{% if edit_opn %}{% url 'opname-view' edit_opn.pk %}{% else %}{% url 'opname-index' %}{% endif %}" class="btn btn-sm bg-gradient-dark mb-0"><i class="fas fa-reply"></i>&nbsp;&nbsp;Batal</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if message %}
+                        <div class="alert alert-danger text-white text-sm">
+                            {% if message|length > 0 %}
+                              {% for e in message %}<div>{{ e }}</div>{% endfor %}
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Header sesi opname -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label class="text-muted text-xs">Tanggal Opname <span class="text-danger">*</span></label>
+                                {{ form.opname_date }}
+                                <div class="text-sm text-danger">{{ form.opname_date.errors }}</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="text-muted text-xs">Gudang <span class="text-danger">*</span></label>
+                                {{ form.warehouse }}
+                                <div class="text-sm text-danger">{{ form.warehouse.errors }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="text-muted text-xs">Catatan</label>
+                                {{ form.notes }}
+                                <div class="text-sm text-danger">{{ form.notes.errors }}</div>
+                            </div>
+                        </div>
+
+                        {% if stage == 'sheet' %}
+                        <div class="alert alert-info text-white text-sm mb-3">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Masukkan <strong>hasil hitung fisik</strong> per baris. Kosongkan baris yang tidak dihitung.
+                            Selisih dihitung otomatis terhadap qty sistem.
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">Lembar Hitung — {{ sheet_warehouse.code }}</h6>
+                            <span class="text-sm text-muted">{{ sheet_rows|length }} baris saldo</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table align-items-center mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Lokasi</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Barang</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-end">Qty Sistem</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Hasil Hitung</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-end">Selisih</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Catatan</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="count-rows">
+                                    {% for bal in sheet_rows %}
+                                    <tr>
+                                        <td><h6 class="mb-0 text-sm">{{ bal.location.code }}</h6></td>
+                                        <td>
+                                            <h6 class="mb-0 text-sm">{{ bal.item.sku }} — {{ bal.item.name }}</h6>
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="text-sm system-qty">{{ bal.on_hand|qty }}</span>
+                                        </td>
+                                        <td>
+                                            <input type="hidden" name="o_balance" value="{{ bal.pk }}">
+                                            <input type="number" name="o_counted" class="form-control form-control-sm count-input"
+                                                   step="1" min="0"
+                                                   data-system="{{ bal.on_hand|qty }}"
+                                                   value="{{ bal.counted_prefill|qty }}">
+                                        </td>
+                                        <td class="text-end"><span class="text-sm diff-cell">—</span></td>
+                                        <td><input type="text" name="o_note" class="form-control form-control-sm" value="{{ bal.note_prefill|default:'' }}"></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-secondary text-white text-sm mb-0">
+                            <i class="fas fa-calendar-day me-1"></i>
+                            Tentukan <strong>Tanggal Opname</strong> (misalnya 28 September 2026) dan gudang yang akan dihitung,
+                            lalu tekan <strong>Muat Lembar Hitung</strong> untuk mengambil snapshot qty sistem.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block javascripts %}
+<script>
+    (function () {
+        var rows = document.getElementById('count-rows');
+        var warehouseSel = document.getElementById('id_warehouse');
+
+        // Tahap lembar hitung: hitung selisih secara langsung
+        if (rows) {
+            function recalc(tr) {
+                var input = tr.querySelector('.count-input');
+                var sys = parseFloat(input.getAttribute('data-system')) || 0;
+                var raw = (input.value || '').trim();
+                var cell = tr.querySelector('.diff-cell');
+                if (raw === '') {
+                    cell.textContent = '—';
+                    cell.className = 'text-sm diff-cell';
+                    return;
+                }
+                var counted = parseFloat(raw) || 0;
+                var diff = counted - sys;
+                cell.textContent = diff > 0 ? '+' + diff : String(diff);
+                cell.className = 'text-sm diff-cell ' +
+                    (diff === 0 ? 'text-success' : (diff > 0 ? 'text-info' : 'text-danger'));
+            }
+            rows.addEventListener('input', function (e) {
+                var tr = e.target.closest('tr');
+                if (tr && e.target.classList.contains('count-input')) recalc(tr);
+            });
+            Array.prototype.forEach.call(rows.querySelectorAll('tr'), recalc);
+        }
+
+        // Mengubah gudang memuat ulang lembar hitung (snapshot berbeda)
+        if (warehouseSel && rows) {
+            warehouseSel.addEventListener('change', function () {
+                var form = warehouseSel.closest('form');
+                var btn = form.querySelector('button[name="stage"][value="sheet"]');
+                if (btn) btn.click();
+            });
+        }
+    })();
+</script>
+{% endblock javascripts %}
