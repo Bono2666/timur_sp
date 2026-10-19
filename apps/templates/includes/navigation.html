@@ -3,15 +3,37 @@
 <!-- Navbar -->
 <nav class="navbar navbar-main navbar-expand-lg px-0 mx-4 shadow-none border-radius-xl" id="navbarBlur" navbar-scroll="true" style="z-index: 1050;">
   <div class="container-fluid py-1 px-3">
-    <nav aria-label="app">
-      <ol class="breadcrumb bg-transparent mb-0 pb-0 pt-1 px-0 me-sm-6 me-5">
-        <li class="text-sm font-weight-bold text-dark active" aria-current="page">
-          TSP Warehouse
-        </li>
-      </ol>
-    </nav>
+    <div class="d-flex align-items-center flex-grow-1">
+      <!-- Tombol buka/tutup sidebar (mobile & tablet, < xl) — harus di LUAR
+           .collapse agar selalu bisa diklik. soft-ui-dashboard.js mengikat
+           toggleSidenav() ke id ini. -->
+      <button type="button" class="btn btn-sm border-0 bg-transparent p-0 me-2 mb-0 text-body d-xl-none"
+              id="iconNavbarSidenav" aria-label="Buka atau tutup menu samping"
+              aria-controls="sidenav-main" aria-expanded="false">
+        <i class="fas fa-bars fa-lg" aria-hidden="true"></i>
+      </button>
+      <nav aria-label="app">
+        <ol class="breadcrumb bg-transparent mb-0 pb-0 pt-1 px-0 me-sm-6 me-5">
+          <li class="text-sm font-weight-bold text-dark active" aria-current="page">
+            TSP Warehouse
+          </li>
+        </ol>
+      </nav>
+    </div>
+    <!-- Toggler menu kanan (muncul otomatis di bawah breakpoint lg).
+         Soft UI menonaktifkan background-image bawaan Bootstrap dan
+         mengharuskan tiga bar di dalamnya. -->
+    <button class="navbar-toggler border-0 mb-0" type="button" data-bs-toggle="collapse"
+            data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false"
+            aria-label="Buka menu pengguna">
+      <span class="navbar-toggler-icon">
+        <span class="navbar-toggler-bar bar1"></span>
+        <span class="navbar-toggler-bar bar2"></span>
+        <span class="navbar-toggler-bar bar3"></span>
+      </span>
+    </button>
     <div class="collapse navbar-collapse mt-sm-0 mt-2 me-md-0 me-sm-4" id="navbar">
-      <ul class="navbar-nav  ms-xl-auto {% if request|is_mobile %}justify-content-end{% endif %}">
+      <ul class="navbar-nav  ms-auto">
         <li class="nav-item d-flex align-items-center">
           <div class="nav-link text-body font-weight-bold px-0">
             <i class="fa fa-user me-sm-1"></i>
@@ -42,23 +64,6 @@
             </div>
           </a>
         </li>
-
-        {% if request|is_mobile %}
-        <li class="nav-item d-xl-none ps-3 d-flex align-items-center">
-          <a href="javascript:;" class="nav-link text-body p-0 m-0" id="iconNavbarSidenav">
-            <div class="sidenav-toggler-inner position-relative">
-              {% if notif > 0 %}
-              <span class="position-absolute top-0 start-100 translate-middle p-1 bg-gradient-danger border border-light rounded-circle z-index-1">
-                <span class="visually-hidden">New alerts</span>
-              </span>
-              {% endif %}
-              <i class="sidenav-toggler-line"></i>
-              <i class="sidenav-toggler-line"></i>
-              <i class="sidenav-toggler-line"></i>
-            </div>
-          </a>
-        </li>
-        {% endif %}
         
       </ul>
     </div>

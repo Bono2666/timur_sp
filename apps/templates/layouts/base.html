@@ -97,6 +97,84 @@
       background-origin: border-box;
       background-repeat: no-repeat;
     }
+
+    /* ===== Sidebar off-canvas di mobile/tablet (< xl) =====
+       Tema Soft UI membiarkan .sidenav tetap terlihat saat body berkelas
+       g-sidenav-hidden (argonn.js memakai kelas itu di <1200px), sehingga
+       sidebar menutupi konten dan tidak ada tombol penutup. Di sini sidebar
+       selalu digeser keluar, dan hanya muncul saat g-sidenav-pinned
+       (dipakai oleh toggleSidenav() pada soft-ui-dashboard.js). */
+    @media (max-width: 1199.98px) {
+      .sidenav {
+        transform: translateX(calc(-100% - 2rem)) !important;
+        transition: transform .25s ease-in-out;
+        z-index: 1060 !important;
+        box-shadow: 0 0 2rem rgba(0, 0, 0, .18);
+      }
+      body.g-sidenav-pinned .sidenav {
+        transform: translateX(0) !important;
+      }
+      .main-content {
+        margin-left: 0 !important;
+      }
+      /* Kunci gulir latar saat sidebar terbuka */
+      body.g-sidenav-pinned {
+        overflow: hidden;
+      }
+      /* Tombol × penutup sidebar: bawaan template nyaris transparan
+         (opacity-5) karena di desktop ditutup lewat tombol navbar.
+         Di mobile ia satu-satunya penanda penutup -> buat terlihat. */
+      #iconSidenav {
+        opacity: .5 !important;
+        z-index: 10;
+      }
+      #iconSidenav:hover,
+      #iconSidenav:focus {
+        opacity: 1 !important;
+      }
+    }
+
+    /* Backdrop saat sidebar mobile terbuka (dibuat oleh skrip di bawah) */
+    #mobileNavBackdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(33, 37, 41, .5);
+      z-index: 1055;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity .25s ease, visibility .25s ease;
+    }
+    #mobileNavBackdrop.show {
+      opacity: 1;
+      visibility: visible;
+    }
+    /* Tampilan tombol hamburger sidebar meniru penanda sidebar desktop */
+    #iconNavbarSidenav:hover {
+      color: #0231CC !important;
+    }
+    /* Ikon toggler menu kanan: warna mengikuti teks tubuh (bukan abu bawaan) */
+    .navbar-toggler .navbar-toggler-icon .navbar-toggler-bar {
+      background: #344767;
+    }
+    /* Di bawah breakpoint lg, Bootstrap menjadikan .navbar-nav kolom dan
+       item menu akun menumpuk vertikal. Tampilkan sebagai satu baris. */
+    @media (max-width: 991.98px) {
+      #navbar .navbar-nav {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        justify-content: space-between;
+        width: 100%;
+        gap: .5rem;
+      }
+      #navbar .navbar-nav > .nav-item {
+        margin-left: 0 !important;
+      }
+      #navbar .navbar-nav > .nav-item .nav-link {
+        padding-left: 0;
+        padding-right: 0;
+        white-space: nowrap;
+      }
+    }
   </style>
 
   <!-- Collapsed sidebar styles — handled by JS in base.html bottom script -->
@@ -305,6 +383,68 @@
   <!-- Control Center for Soft Dashboard: parallax effects, scripts for the example pages etc -->
   <script src="{% static 'js/soft-ui-dashboard.min.js' %}"></script>
   <script src="{% static 'js/scripts.js' %}"></script>
+
+  <script>
+    /* Sidebar mobile: backdrop + sinkronisasi state.
+       soft-ui-dashboard.js mengikat toggleSidenav() pada #iconNavbarSidenav
+       dan #iconSidenav (tombol ×) — keduanya hanya mengganti kelas
+       g-sidenav-pinned pada <body>; CSS media <1200px di base.html yang
+       menerjemahkannya menjadi geser-masuk/keluar sidebar. */
+    (function () {
+      var body = document.body;
+      var backdrop = document.createElement('div');
+      backdrop.id = 'mobileNavBackdrop';
+      backdrop.setAttribute('aria-hidden', 'true');
+      body.appendChild(backdrop);
+
+      var toggleBtn = document.getElementById('iconNavbarSidenav');
+
+      function isCompact() { return window.innerWidth < 1200; }
+      function isOpen() {
+        return body.classList.contains('g-sidenav-pinned') && isCompact();
+      }
+
+      function sync() {
+        var open = isOpen();
+        backdrop.classList.toggle('show', open);
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        var aside = document.getElementById('sidenav-main');
+        if (aside) aside.setAttribute('aria-hidden', (isCompact() && !open) ? 'true' : 'false');
+      }
+
+      function close() {
+        body.classList.remove('g-sidenav-pinned');
+        var aside = document.getElementById('sidenav-main');
+        if (aside) { aside.classList.remove('bg-white'); aside.classList.add('bg-transparent'); }
+        sync();
+      }
+
+      backdrop.addEventListener('click', close);
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && isOpen()) close();
+      });
+      /* vendor menangani klik toggle-nya sendiri -> sinkronkan setelahnya */
+      document.addEventListener('click', function (e) {
+        if (e.target && e.target.closest && e.target.closest('#iconNavbarSidenav, #iconSidenav')) {
+          setTimeout(sync, 0);
+        }
+      });
+
+      /* Saat melewati breakpoint xl, pastikan state tidak menempel:
+         - ke mobile: paksa tertutup (argon.js hanya memberi pin di >=1200) */
+      var wasCompact = isCompact();
+      if (wasCompact && body.classList.contains('g-sidenav-pinned')) close();
+      window.addEventListener('resize', function () {
+        var compact = isCompact();
+        if (compact !== wasCompact) {
+          wasCompact = compact;
+          if (compact) close(); else sync();
+        }
+      });
+
+      sync();
+    })();
+  </script>
   <!-- Bootstrap Bundle -->
 </body>
 
