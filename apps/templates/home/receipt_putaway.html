@@ -38,11 +38,12 @@
                     <div class="card-body">
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label class="text-muted text-xs">Scan barcode / ketik SKU (Enter), atau klik Scan Barang untuk kamera — input baris baru aktif setelah barang discan</label>
+                                <label class="text-muted text-xs">Scan barcode / ketik SKU (Enter), atau klik Scan Barang untuk kamera — jumlah diisi pada popup hasil scan</label>
                                 <div class="input-group">
                                     <input type="text" id="scan-input" class="form-control" placeholder="Scan atau ketik SKU..." autocomplete="off">
                                     <button type="button" id="btn-scan-camera" class="btn bg-gradient-dark text-nowrap mb-0" data-bs-toggle="modal" data-bs-target="#modal-scan"><i class="fas fa-barcode"></i>&nbsp;&nbsp;Scan Barang</button>
                                 </div>
+                                <p id="scan-feedback" class="text-xs text-success mt-2 mb-0 d-none"></p>
                             </div>
                             <div class="col-md-6 d-flex align-items-end">
                                 <p class="text-sm text-secondary mb-1">
@@ -65,7 +66,11 @@
                                 </thead>
                                 <tbody id="putaway-lines">
                                     {% for line in lines %}
-                                    <tr data-barcode="{{ line.item.barcode|default:'' }}" data-sku="{{ line.item.sku|upper }}">
+                                    <tr data-barcode="{{ line.item.barcode|default:'' }}" data-sku="{{ line.item.sku|upper }}"
+                                        data-name="{{ line.item.name }}"
+                                        data-from="{{ data.receiving_location.code }}"
+                                        data-to="{{ line.destination_location.code }}"
+                                        data-remaining="{{ line.putaway_remaining|qty }}">
                                         <td>
                                             <h6 class="mb-0 text-sm">{{ line.item.sku }}</h6>
                                             <p class="text-xs text-secondary mb-0">{{ line.item.name }}</p>
@@ -101,6 +106,35 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Modal Hasil Scan: info barang + input jumlah putaway -->
+            <div class="modal fade" id="modal-scan-result" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Hasil Scan Barang</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="scan-info mb-3">
+                                <div><span>SKU</span><strong id="sr-sku"></strong></div>
+                                <div><span>Nama Barang</span><strong id="sr-name"></strong></div>
+                                <div><span>Lokasi Asal</span><strong id="sr-from"></strong></div>
+                                <div><span>Lokasi Tujuan</span><strong id="sr-to"></strong></div>
+                                <div><span>Sisa Putaway</span><strong id="sr-remaining"></strong></div>
+                            </div>
+                            <label for="sr-qty" class="form-label text-xs text-secondary text-uppercase font-weight-bold mb-1">Jumlah Dipindahkan</label>
+                            <input type="number" step="1" min="0" id="sr-qty" class="form-control text-end fw-bold" inputmode="numeric" placeholder="0">
+                            <p class="text-xs text-secondary mt-2 mb-0">Kosongkan / isi 0 bila barang tidak dipindahkan sekarang.</p>
+                            <p class="text-xs text-danger mt-2 mb-0 d-none" id="sr-error"></p>
+                        </div>
+                        <div class="modal-footer border-0">
+                            <button type="button" class="btn btn-sm bg-gradient-secondary mb-0" data-bs-dismiss="modal">Batal</button>
+                            <button type="button" id="sr-save" class="btn btn-sm bg-gradient-success mb-0"><i class="fas fa-check"></i>&nbsp;&nbsp;Simpan</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -115,6 +149,12 @@
     /* Radius kanan input SKU = 0 agar menyambung dengan tombol Scan
        (Soft UI memaksa .form-control radius-kanan 0.5rem !important). */
     #scan-input { border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; }
+    /* Info barang pada popup hasil scan: label kiri, nilai kanan */
+    .scan-info > div { display: flex; justify-content: space-between; gap: 1rem; padding: .45rem 0; border-bottom: 1px dashed #e5e9f2; }
+    .scan-info > div:last-child { border-bottom: 0; }
+    .scan-info span { color: #7986a3; font-size: .82rem; }
+    .scan-info strong { font-size: .88rem; color: #344767; text-align: right; }
+    #sr-qty { font-size: 1.05rem; }
 </style>
 <script>
     (function () {
@@ -126,58 +166,121 @@
         var html5Qr = null;
 
         function setRowEnabled(r, on) {
-            // Satu input jumlah per baris (.p-qty) — aktif hanya setelah baris discan.
+            // Satu input jumlah per baris (.p-qty) — aktif hanya setelah disimpan
+            // dari popup hasil scan.
             var els = r.querySelectorAll('input, select');
             for (var j = 0; j < els.length; j++) { els[j].disabled = !on; }
         }
 
-        function handleScan(rawCode) {
+        // --- Hasil scan: popup info barang + input jumlah ---
+        var resultModalEl = document.getElementById('modal-scan-result');
+        var resultModal = new bootstrap.Modal(resultModalEl);
+        var srQty = document.getElementById('sr-qty');
+        var srErr = document.getElementById('sr-error');
+        var pendingRow = null;   // baris yang cocok dengan barcode terakhir
+
+        function findRow(rawCode) {
             var code = (rawCode || '').trim().toUpperCase();
             if (!code) return null;
-            var match = null;
             var rows = body.querySelectorAll('tr');
             for (var i = 0; i < rows.length; i++) {
                 var r = rows[i];
                 if (r.getAttribute('data-barcode') === code || r.getAttribute('data-sku') === code) {
-                    match = r;
-                    setRowEnabled(r, true);   // cocok → input jumlah baris terbuka
-                    r.classList.add('table-active');
-                    r.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                    var qty = r.querySelector('.p-qty');
-                    if (qty) { qty.focus(); qty.select(); }
-                    setTimeout(function () { r.classList.remove('table-active'); }, 3000);
+                    return r;
                 }
             }
-            if (!match) {
-                alert('Barang dengan barcode/SKU "' + code + '" tidak ada dalam daftar putaway.');
-            }
-            return match;
+            return null;
         }
 
-        // Awal: SEMUA input jumlah disabled; terbuka per baris setelah discan.
+        // Buka popup hasil scan (info lokasi + jumlah dipindahkan).
+        function openScanResult(row) {
+            pendingRow = row;
+            document.getElementById('sr-sku').textContent = row.getAttribute('data-sku') || '';
+            document.getElementById('sr-name').textContent = row.getAttribute('data-name') || '';
+            document.getElementById('sr-from').textContent = row.getAttribute('data-from') || '';
+            document.getElementById('sr-to').textContent = row.getAttribute('data-to') || '';
+            document.getElementById('sr-remaining').textContent = row.getAttribute('data-remaining') || '0';
+            srErr.classList.add('d-none');
+            srQty.value = row.querySelector('.p-qty').value;  // preisi nilai baris saat ini
+            resultModal.show();
+            setTimeout(function () { srQty.focus(); srQty.select(); }, 350);
+        }
+
+        // Simpan popup: tulis jumlah ke baris, aktifkan input baris, tutup popup.
+        function saveScanResult() {
+            if (!pendingRow) return;
+            var row = pendingRow;
+            var raw = (srQty.value || '').trim();
+            var remaining = parseFloat(row.getAttribute('data-remaining') || '0');
+            var err = '';
+            if (raw !== '') {
+                var qty = Number(raw);
+                if (!Number.isInteger(qty) || qty < 0) err = 'Jumlah harus berupa bilangan bulat >= 0.';
+                else if (Number.isFinite(remaining) && qty > remaining) err = 'Jumlah melebihi sisa putaway (' + remaining + ').';
+            }
+            if (err) {
+                srErr.textContent = err;
+                srErr.classList.remove('d-none');
+                return;
+            }
+            var input = row.querySelector('.p-qty');
+            input.value = raw;                    // '' = tidak dipindahkan (server baca 0)
+            setRowEnabled(row, true);
+            row.classList.add('table-active');
+            row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            setTimeout(function () { row.classList.remove('table-active'); }, 3000);
+            var fb = document.getElementById('scan-feedback');
+            fb.textContent = (row.getAttribute('data-sku') || '') + ' — jumlah ' + (raw === '' ? '0' : raw) + ' disimpan.';
+            fb.classList.remove('d-none');
+            resultModal.hide();
+        }
+
+        document.getElementById('sr-save').addEventListener('click', saveScanResult);
+        srQty.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); saveScanResult(); }
+        });
+        // Popup ditutup tanpa simpan -> baris tetap nonaktif (belum discan).
+        resultModalEl.addEventListener('hidden.bs.modal', function () { pendingRow = null; });
+
+        // Awal: SEMUA input jumlah disabled; terbuka per baris setelah disimpan
+        // dari popup hasil scan.
         var initRows = body.querySelectorAll('tr');
         for (var k = 0; k < initRows.length; k++) { setRowEnabled(initRows[k], false); }
 
-        // Scan manual (keyboard): Enter di input SKU.
+        // Scan manual (keyboard): Enter di input SKU -> popup hasil scan.
         scan.addEventListener('keydown', function (e) {
             if (e.key !== 'Enter') return;
             e.preventDefault();
-            handleScan(scan.value);
-            scan.value = '';
-            scan.focus();
+            var row = findRow(scan.value);
+            if (row) {
+                scan.value = '';
+                openScanResult(row);
+            } else {
+                alert('Barang dengan barcode/SKU "' + scan.value.trim() + '" tidak ada dalam daftar putaway.');
+                scan.select();
+            }
         });
 
         // Scan kamera (tombol Scan Barang membuka modal #modal-scan).
+        var lastRow = null;
         scanModalEl.addEventListener('shown.bs.modal', function () {
-            var reader = document.getElementById('camera-reader');
+            lastRow = null;
             scanStatus.textContent = 'Arahkan kamera ke barcode barang...';
             scanStatus.className = 'text-sm mb-0 text-secondary';
+            if (typeof Html5Qrcode === 'undefined') {
+                scanStatus.textContent = 'Library kamera belum termuat — periksa koneksi internet.';
+                scanStatus.className = 'text-sm mb-0 text-danger';
+                return;
+            }
             html5Qr = new Html5Qrcode('camera-reader');
             html5Qr.start({ facingMode: 'environment' },
                 { fps: 10, qrbox: { width: 250, height: 160 } },
                 function (decoded) {
-                    var row = handleScan(decoded);
-                    if (row) {                 // cocok → tutup modal + matikan kamera
+                    var row = findRow(decoded);
+                    if (row) {                 // cocok → tutup modal kamera;
+                        lastRow = row;         // popup jumlah dibuka setelah kamera tertutup
+                        scanStatus.textContent = 'Cocok: "' + decoded + '" — isi jumlah pada popup konfirmasi.';
+                        scanStatus.className = 'text-sm mb-0 text-success';
                         scanModal.hide();
                     } else {                    // tidak cocok → tetap buka, status merah
                         scanStatus.textContent = '"' + decoded + '" tidak ada dalam daftar putaway.';
@@ -196,7 +299,13 @@
                 html5Qr.stop().then(function () { html5Qr.clear(); html5Qr = null; }).catch(function () {});
             }
         }
-        scanModalEl.addEventListener('hidden.bs.modal', stopCamera);
+        scanModalEl.addEventListener('hidden.bs.modal', function () {
+            stopCamera();
+            if (lastRow) {               // hasil scan kamera -> buka popup jumlah
+                var r = lastRow; lastRow = null;
+                openScanResult(r);
+            }
+        });
 
         scan.focus();
     })();

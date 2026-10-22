@@ -42,11 +42,12 @@
                     <div class="card-body">
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label class="text-muted text-xs">Scan barcode / ketik SKU (Enter), atau klik Scan Barang untuk kamera — input baris baru aktif setelah barang discan</label>
+                                <label class="text-muted text-xs">Scan barcode / ketik SKU (Enter), atau klik Scan Barang untuk kamera — jumlah diisi pada popup hasil scan</label>
                                 <div class="input-group">
                                     <input type="text" id="scan-input" class="form-control" placeholder="Scan atau ketik SKU..." autocomplete="off">
                                     <button type="button" id="btn-scan-camera" class="btn bg-gradient-dark text-nowrap mb-0" data-bs-toggle="modal" data-bs-target="#modal-scan"><i class="fas fa-barcode"></i>&nbsp;&nbsp;Scan Barang</button>
                                 </div>
+                                <p id="scan-feedback" class="text-xs text-success mt-2 mb-0 d-none"></p>
                             </div>
                             <div class="col-md-6 d-flex align-items-end">
                                 <p class="text-sm text-secondary mb-1">
@@ -70,7 +71,8 @@
                                 </thead>
                                 <tbody id="validate-lines">
                                     {% for line in lines %}
-                                    <tr data-barcode="{{ line.item.barcode|default:'' }}" data-sku="{{ line.item.sku|upper }}">
+                                    <tr data-barcode="{{ line.item.barcode|default:'' }}" data-sku="{{ line.item.sku|upper }}"
+                                        data-name="{{ line.item.name }}" data-ordered="{{ line.quantity|qty }}">
                                         <td>
                                             <h6 class="mb-0 text-sm">{{ line.item.sku }}</h6>
                                             <p class="text-xs text-secondary mb-0">{{ line.item.name }}</p>
@@ -114,6 +116,33 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Modal Hasil Scan: info barang + input jumlah -->
+            <div class="modal fade" id="modal-scan-result" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Hasil Scan Barang</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="scan-info mb-3">
+                                <div><span>SKU</span><strong id="sr-sku"></strong></div>
+                                <div><span>Nama Barang</span><strong id="sr-name"></strong></div>
+                                <div><span>Qty Dipesan</span><strong id="sr-ordered"></strong></div>
+                            </div>
+                            <label for="sr-qty" class="form-label text-xs text-secondary text-uppercase font-weight-bold mb-1">Jumlah Diterima Fisik</label>
+                            <input type="number" step="1" min="0" id="sr-qty" class="form-control text-end fw-bold" inputmode="numeric" placeholder="0">
+                            <p class="text-xs text-secondary mt-2 mb-0">Kolom diterima layak terisi otomatis sama dengan jumlah diterima fisik — ubah langsung di tabel bila ada barang ditolak.</p>
+                            <p class="text-xs text-danger mt-2 mb-0 d-none" id="sr-error"></p>
+                        </div>
+                        <div class="modal-footer border-0">
+                            <button type="button" class="btn btn-sm bg-gradient-secondary mb-0" data-bs-dismiss="modal">Batal</button>
+                            <button type="button" id="sr-save" class="btn btn-sm bg-gradient-success mb-0"><i class="fas fa-check"></i>&nbsp;&nbsp;Simpan</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -127,6 +156,12 @@
     /* Radius kanan input SKU = 0 agar menyambung dengan tombol Scan
        (Soft UI memaksa .form-control radius-kanan 0.5rem !important). */
     #scan-input { border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; }
+    /* Info barang pada popup hasil scan: label kiri, nilai kanan */
+    .scan-info > div { display: flex; justify-content: space-between; gap: 1rem; padding: .45rem 0; border-bottom: 1px dashed #e5e9f2; }
+    .scan-info > div:last-child { border-bottom: 0; }
+    .scan-info span { color: #7986a3; font-size: .82rem; }
+    .scan-info strong { font-size: .88rem; color: #344767; text-align: right; }
+    #sr-qty { font-size: 1.05rem; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
@@ -186,35 +221,86 @@
             }
         });
 
-        // Cocokkan kode barang dengan daftar item validasi; bila cocok ->
-        // aktifkan input baris tersebut (scan keyboard maupun kamera kini sama).
-        function handleScan(rawCode) {
+        // --- Hasil scan: popup info barang + input jumlah ---
+        var resultModalEl = document.getElementById('modal-scan-result');
+        var resultModal = new bootstrap.Modal(resultModalEl);
+        var srQty = document.getElementById('sr-qty');
+        var srErr = document.getElementById('sr-error');
+        var pendingRow = null;   // baris yang cocok dengan barcode terakhir
+
+        function findRow(rawCode) {
             var code = (rawCode || '').trim().toUpperCase();
             if (!code) return null;
             var rows = body.querySelectorAll('tr');
             for (var i = 0; i < rows.length; i++) {
                 var r = rows[i];
                 if (r.getAttribute('data-barcode') === code || r.getAttribute('data-sku') === code) {
-                    setRowEnabled(r, true);
-                    r.classList.add('table-active');
-                    r.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                    var input = r.querySelector('.v-received');
-                    input.focus();
-                    input.select();
-                    setTimeout(function () { r.classList.remove('table-active'); }, 3000);
                     return r;
                 }
             }
             return null;
         }
 
-        // Scan barcode / ketik SKU -> lompat ke baris barang + aktifkan inputnya
+        // Buka popup hasil scan untuk sebuah baris (info + input jumlah).
+        function openScanResult(row) {
+            pendingRow = row;
+            document.getElementById('sr-sku').textContent = row.getAttribute('data-sku') || '';
+            document.getElementById('sr-name').textContent = row.getAttribute('data-name') || '';
+            document.getElementById('sr-ordered').textContent = row.getAttribute('data-ordered') || '0';
+            srErr.classList.add('d-none');
+            srQty.value = row.querySelector('.v-received').value;  // preisi nilai lama bila ada
+            resultModal.show();
+            setTimeout(function () { srQty.focus(); srQty.select(); }, 350);
+        }
+
+        // Simpan popup: tulis jumlah ke baris, aktifkan input baris, tutup popup.
+        function saveScanResult() {
+            if (!pendingRow) return;
+            var row = pendingRow;
+            var raw = (srQty.value || '').trim();
+            var qty = Number(raw);
+            var ordered = parseFloat(row.getAttribute('data-ordered') || '0');
+            var err = '';
+            if (raw === '') err = 'Jumlah diterima fisik wajib diisi.';
+            else if (!Number.isInteger(qty) || qty < 0) err = 'Jumlah harus berupa bilangan bulat >= 0.';
+            else if (Number.isFinite(ordered) && qty > ordered) err = 'Jumlah melebihi qty dipesan (' + ordered + ').';
+            if (err) {
+                srErr.textContent = err;
+                srErr.classList.remove('d-none');
+                return;
+            }
+            var rec = row.querySelector('.v-received');
+            var acc = row.querySelector('.v-accepted');
+            var oldRec = parseFloat(rec.value || '0');
+            // Auto isi / sinkron "diterima layak" dengan total diterima:
+            // kosong -> isi; masih sama dengan nilai lama -> ikut diperbarui.
+            if (!acc.value || parseFloat(acc.value || '0') === oldRec) { acc.value = qty; }
+            rec.value = qty;
+            setRowEnabled(row, true);
+            row.classList.add('table-active');
+            row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            setTimeout(function () { row.classList.remove('table-active'); }, 3000);
+            var fb = document.getElementById('scan-feedback');
+            fb.textContent = (row.getAttribute('data-sku') || '') + ' — jumlah ' + qty + ' disimpan.';
+            fb.classList.remove('d-none');
+            resultModal.hide();
+        }
+
+        document.getElementById('sr-save').addEventListener('click', saveScanResult);
+        srQty.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); saveScanResult(); }
+        });
+        // Popup ditutup tanpa simpan -> baris tetap nonaktif (belum discan).
+        resultModalEl.addEventListener('hidden.bs.modal', function () { pendingRow = null; });
+
+        // Scan barcode / ketik SKU -> buka popup hasil scan baris tersebut
         scan.addEventListener('keydown', function (e) {
             if (e.key !== 'Enter') return;
             e.preventDefault();
             var code = scan.value.trim().toUpperCase();
             if (!code) return;
-            if (handleScan(code)) { scan.value = ''; return; }
+            var row = findRow(code);
+            if (row) { scan.value = ''; openScanResult(row); return; }
             alert('Barang dengan barcode/SKU "' + code + '" tidak ada pada dokumen ini.');
             scan.select();
         });
@@ -249,13 +335,13 @@
                 { facingMode: 'environment' },
                 { fps: 10, qrbox: { width: 250, height: 150 } },
                 function (text) {
-                    var row = handleScan(text);
+                    var row = findRow(text);
                     if (row) {
                         lastRow = row;
-                        setStatus('Cocok: "' + text + '" — input jumlah & karantina baris ini aktif.', 'ok');
+                        setStatus('Cocok: "' + text + '" — isi jumlah pada popup konfirmasi.', 'ok');
                         var m = bootstrap.Modal.getInstance(modalEl) ||
                                 bootstrap.Modal.getOrCreateInstance(modalEl);
-                        m.hide();
+                        m.hide();       // kamera ditutup; popup hasil scan dibuka setelahnya
                     } else {
                         setStatus('Barcode "' + text + '" tidak ada pada dokumen ini.', 'err');
                     }
@@ -270,11 +356,10 @@
 
         modalEl.addEventListener('hidden.bs.modal', function () {
             stopCamera();
-            if (lastRow) {
-                var inp = lastRow.querySelector('.v-received');
-                if (inp) { inp.focus(); inp.select(); }
+            if (lastRow) {               // hasil scan kamera -> buka popup jumlah
+                var r = lastRow; lastRow = null;
+                openScanResult(r);
             }
-            lastRow = null;
         });
 
         scan.focus();
